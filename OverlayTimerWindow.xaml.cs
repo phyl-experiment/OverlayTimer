@@ -61,7 +61,6 @@ namespace OverlayTimer
         // === 오버레이 세팅 ===
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            SetFullscreen();
             MakeClickThrough();
 
             PreviewKeyDown += (_, _) => UpdateEditMode();
@@ -103,14 +102,6 @@ namespace OverlayTimer
             SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
 
             e.Handled = true;
-        }
-
-        private void SetFullscreen()
-        {
-            Left = 0;
-            Top = 0;
-            Width = SystemParameters.PrimaryScreenWidth;
-            Height = SystemParameters.PrimaryScreenHeight;
         }
 
         private void MakeClickThrough()

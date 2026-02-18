@@ -3,12 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None"
         ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight"
         AllowsTransparency="True"
         Background="Transparent"
         Topmost="True"
         WindowStartupLocation="Manual"
-        Left="40"
-        Top="60"        
+        Left="500"
+        Top="60"
         ShowInTaskbar="True"
         Loaded="Window_Loaded">
 
@@ -17,10 +18,7 @@
 
         <Border Background="#66000000"
                 CornerRadius="20"
-                Padding="18"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Top"
-                Margin="450,0,0,0">
+                Padding="18">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
