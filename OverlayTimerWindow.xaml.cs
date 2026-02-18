@@ -6,6 +6,8 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Point = System.Windows.Point;
+using Size = System.Windows.Size;
 
 
 namespace OverlayTimer
