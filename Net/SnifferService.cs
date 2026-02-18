@@ -15,9 +15,12 @@ namespace OverlayTimer.Net
         private ICaptureDevice? _device;
         private bool _running;
 
-        public SnifferService(int targetPort, PacketHandler packetHandler, ProtocolConfig protocol)
+        private readonly string? _deviceName;
+
+        public SnifferService(int targetPort, string? deviceName, PacketHandler packetHandler, ProtocolConfig protocol)
         {
             _targetPort = targetPort;
+            _deviceName = deviceName;
             _packetHandler = packetHandler;
             _parser = new PacketStreamParser(packetHandler, protocol.StartMarkerBytes, protocol.EndMarkerBytes);
         }
@@ -28,7 +31,7 @@ namespace OverlayTimer.Net
             _running = true;
             _worker = new CaptureWorker(_parser);
 
-            _device = DeviceSelector.OpenBestEthernetOrFallback(readTimeoutMs: 1000);
+            _device = DeviceSelector.OpenBestEthernetOrFallback(_deviceName, readTimeoutMs: 1000);
 
             // 클라이언트가 "받는" 쪽을 주로 보고 싶다면 src port
             _device.Filter = $"tcp src port {_targetPort}";

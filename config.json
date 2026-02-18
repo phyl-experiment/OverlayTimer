@@ -1,6 +1,7 @@
 {
   "network": {
-    "targetPort": 16000
+    "targetPort": 16000,
+    "deviceName": null
   },
   "protocol": {
     "startMarker": "80 4E 00 00 00 00 00 00 00",

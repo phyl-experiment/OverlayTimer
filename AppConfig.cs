@@ -37,6 +37,11 @@ namespace OverlayTimer
     {
         [JsonPropertyName("targetPort")]
         public int TargetPort { get; set; } = 16000;
+
+        // null이면 자동 선택 (Ethernet 우선). 어댑터가 여러 개일 때 Description 부분 문자열로 지정.
+        // 예: "Intel(R) Ethernet", "Realtek"
+        [JsonPropertyName("deviceName")]
+        public string? DeviceName { get; set; } = null;
     }
 
     public sealed class ProtocolConfig

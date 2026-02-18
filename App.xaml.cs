@@ -23,7 +23,7 @@ public partial class App : Application
         ITimerTrigger timerTrigger = new OverlayTriggerTimer(window, config.Timer);
         var packetHandler = new PacketHandler(timerTrigger, selfIdResolver, config.PacketTypes.BuffStart, config.BuffKeys);
 
-        _sniffer = new SnifferService(config.Network.TargetPort, packetHandler, config.Protocol);
+        _sniffer = new SnifferService(config.Network.TargetPort, config.Network.DeviceName, packetHandler, config.Protocol);
         _sniffer.Start(_cts.Token);
     }
 
