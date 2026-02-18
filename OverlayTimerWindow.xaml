@@ -1,0 +1,60 @@
+﻿<Window x:Class="OverlayTimer.OverlayTimerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        WindowStartupLocation="Manual"
+        Left="40"
+        Top="60"        
+        ShowInTaskbar="True"
+        Loaded="Window_Loaded">
+
+    <!-- 클릭은 통과시키고, UI는 표시만 -->
+    <Grid x:Name="Root" IsHitTestVisible="False" Background="Transparent">
+
+        <Border Background="#66000000"
+                CornerRadius="20"
+                Padding="18"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Margin="450,0,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="ModeText"
+                           Text="READY"
+                           Foreground="White"
+                           FontSize="20"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,10"/>
+
+                <Grid Grid.Row="1" Width="220" Height="220">
+                    <!-- 배경 링 -->
+                    <Ellipse Stroke="#44FFFFFF" StrokeThickness="14"/>
+
+                    <!-- 진행 링(Arc) -->
+                    <Path x:Name="ProgressArc"
+                          Stroke="White"
+                          StrokeThickness="14"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"/>
+
+                    <!-- 남은 시간 -->
+                    <TextBlock x:Name="TimeText"
+                               Text="0.0"
+                               Foreground="White"
+                               FontSize="48"
+                               FontWeight="Bold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>    

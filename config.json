@@ -1,0 +1,22 @@
+{
+  "network": {
+    "targetPort": 16000
+  },
+  "protocol": {
+    "startMarker": "80 4E 00 00 00 00 00 00 00",
+    "endMarker": "12 4F 00 00 00 00 00 00 00"
+  },
+  "packetTypes": {
+    "buffStart": 100054,
+    "enterWorld": 101059
+  },
+  "buffKeys": [
+    1590198662,
+    2024838942
+  ],
+  "timer": {
+    "activeDurationSeconds": 20,
+    "cooldownShortSeconds": 32,
+    "cooldownLongSeconds": 70
+  }
+}
