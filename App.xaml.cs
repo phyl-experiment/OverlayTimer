@@ -26,7 +26,11 @@ public partial class App : System.Windows.Application
 
         var selfIdResolver = new SelfIdResolver(config.PacketTypes.EnterWorld);
         ITimerTrigger timerTrigger = new OverlayTriggerTimer(window, config.Timer);
-        var packetHandler = new PacketHandler(timerTrigger, selfIdResolver, config.PacketTypes.BuffStart, config.BuffKeys);
+
+        var typeLogger = new PacketTypeLogger();
+        OverlayTimerWindow.OnF9Press = typeLogger.TogglePhase;
+
+        var packetHandler = new PacketHandler(timerTrigger, selfIdResolver, config.PacketTypes.BuffStart, config.BuffKeys, typeLogger);
 
         _sniffer = new SnifferService(config.Network.TargetPort, config.Network.DeviceName, packetHandler, config.Protocol);
         try

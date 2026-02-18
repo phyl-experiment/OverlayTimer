@@ -22,6 +22,9 @@ namespace OverlayTimer
         private const int WM_SYSKEYUP = 0x0105;
         private const int VK_LCONTROL = 0xA2;
         private const int VK_RCONTROL = 0xA3;
+        private const int VK_F9 = 0x78;
+
+        internal static Action? OnF9Press;
 
         private static IntPtr _kbHook = IntPtr.Zero;
         private static LowLevelKeyboardProc? _kbProc; // delegate GC 방지
@@ -201,6 +204,8 @@ namespace OverlayTimer
                     int vkCode = Marshal.ReadInt32(lParam); // KBDLLHOOKSTRUCT.vkCode
                     if (vkCode == VK_LCONTROL || vkCode == VK_RCONTROL)
                         _ctrlDown = isDownMsg;
+                    if (isDownMsg && vkCode == VK_F9)
+                        OnF9Press?.Invoke();
                 }
             }
 

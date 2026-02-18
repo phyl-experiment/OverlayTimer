@@ -8,17 +8,20 @@ namespace OverlayTimer.Net
         private readonly SelfIdResolver _selfIdResolver;
         private readonly int _buffStartDataType;
         private readonly uint[] _buffKeys;
+        private readonly PacketTypeLogger? _logger;
 
-        public PacketHandler(ITimerTrigger timerTrigger, SelfIdResolver selfIdResolver, int buffStartDataType, uint[] buffKeys)
+        public PacketHandler(ITimerTrigger timerTrigger, SelfIdResolver selfIdResolver, int buffStartDataType, uint[] buffKeys, PacketTypeLogger? logger = null)
         {
             _timerTrigger = timerTrigger;
             _selfIdResolver = selfIdResolver;
             _buffStartDataType = buffStartDataType;
             _buffKeys = buffKeys;
+            _logger = logger;
         }
 
         public void OnPacket(int dataType, ReadOnlySpan<byte> content)
         {
+            if (_logger != null) _logger.OnPacket(dataType, content);
             if (dataType == _buffStartDataType)
             {
                 var parsed = PacketBuffStart.Parse(content);
