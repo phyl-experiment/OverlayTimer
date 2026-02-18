@@ -81,6 +81,13 @@ NIC (Npcap)
 
 ---
 
+## 실행 선행 조건
+
+- **[Npcap](https://npcap.com/)** 설치 필요 (WinPcap API 호환 모드 권장). 미설치 시 "No capture devices found" 오류 발생.
+- 관리자 권한으로 실행해야 패킷 캡처가 정상 동작함.
+
+---
+
 ## 개발 유의사항
 
 - 로깅은 기본 비활성화(`LogHelper.Disabled = true`). 디버깅 시 `false`로 전환하면 `logs/` 폴더에 기록됨.
