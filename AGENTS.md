@@ -95,3 +95,20 @@ NIC (Npcap)
 - `OverlayTriggerTimer`가 타이머/UI 라이프사이클 전체를 담당함. `OverlayTimerWindow`는 표시만 책임짐.
 - 게임 클라이언트에 어떤 패킷도 송신하지 않으며, 캡처(읽기)만 수행함.
 - **dataType 번호는 게임 업데이트 시 변경될 수 있음.** 동작이 멈추면 `config.json`의 `packetTypes`, `buffKeys` 값을 재확인할 것.
+
+---
+
+## DPS 기능 반영 (config 기반)
+
+- 이제 오버레이는 `각성 타이머` + `DPS` 두 기능을 지원함.
+- 두 기능 모두 `config.json`에서 제어 가능함.
+- 표시 On/Off: `overlays.timer.enabled`, `overlays.dps.enabled`
+- 시작 위치: `overlays.timer.x`, `overlays.timer.y`, `overlays.dps.x`, `overlays.dps.y`
+- 관련 dataType 설정: `packetTypes.buffStart`, `packetTypes.enterWorld`, `packetTypes.dpsAttack`, `packetTypes.dpsDamage`
+
+### 트레이에서 하나만 보이게 하기
+
+- 재시작 없이 임시로 한 개만 표시하려면 트레이 메뉴에서 숨길 쪽 항목을 클릭.
+- 타이머만 숨기기: `타이머 최소화` 클릭 (다시 누르면 `타이머 복원`)
+- DPS만 숨기기: `DPS 최소화` 클릭 (다시 누르면 `DPS 복원`)
+- 항상 하나만 시작하려면 `config.json`에서 반대쪽 `enabled`를 `false`로 설정.
