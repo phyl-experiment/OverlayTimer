@@ -11,26 +11,61 @@ public partial class App : System.Windows.Application
     private CancellationTokenSource? _cts;
     private SnifferService? _sniffer;
     private NotifyIcon? _trayIcon;
+    private OverlayTimerWindow? _timerWindow;
+    private DpsOverlayWindow? _dpsWindow;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         var config = AppConfig.Load();
+        var skillNames = SkillNameMap.Load();
         _cts = new CancellationTokenSource();
 
-        var window = new OverlayTimerWindow();
-        window.Show();
+        OverlayTimerWindow? window = null;
+        ITimerTrigger timerTrigger = NoopTimerTrigger.Instance;
+        PacketTypeLogger? typeLogger = null;
+
+        if (config.Overlays.Timer.Enabled)
+        {
+            window = new OverlayTimerWindow
+            {
+                Left = config.Overlays.Timer.X,
+                Top = config.Overlays.Timer.Y
+            };
+            _timerWindow = window;
+            window.Show();
+
+            timerTrigger = new OverlayTriggerTimer(window, config.Timer);
+
+            typeLogger = new PacketTypeLogger();
+            OverlayTimerWindow.OnF9Press = typeLogger.TogglePhase;
+        }
+
+        var dpsTracker = new DpsTracker();
+        if (config.Overlays.Dps.Enabled)
+        {
+            _dpsWindow = new DpsOverlayWindow(dpsTracker, skillNames)
+            {
+                Left = config.Overlays.Dps.X,
+                Top = config.Overlays.Dps.Y
+            };
+            _dpsWindow.Show();
+        }
 
         _trayIcon = CreateTrayIcon();
 
         var selfIdResolver = new SelfIdResolver(config.PacketTypes.EnterWorld);
-        ITimerTrigger timerTrigger = new OverlayTriggerTimer(window, config.Timer);
 
-        var typeLogger = new PacketTypeLogger();
-        OverlayTimerWindow.OnF9Press = typeLogger.TogglePhase;
-
-        var packetHandler = new PacketHandler(timerTrigger, selfIdResolver, config.PacketTypes.BuffStart, config.BuffKeys, typeLogger);
+        var packetHandler = new PacketHandler(
+            timerTrigger,
+            selfIdResolver,
+            config.PacketTypes.BuffStart,
+            config.BuffKeys,
+            typeLogger,
+            dpsTracker,
+            config.PacketTypes.DpsAttack,
+            config.PacketTypes.DpsDamage);
 
         _sniffer = new SnifferService(config.Network.TargetPort, config.Network.DeviceName, packetHandler, config.Protocol);
         try
@@ -90,7 +125,51 @@ public partial class App : System.Windows.Application
     private NotifyIcon CreateTrayIcon()
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("醫낅즺").Click += (_, _) => Shutdown();
+
+        ToolStripMenuItem? timerItem = null;
+        ToolStripMenuItem? dpsItem = null;
+
+        if (_timerWindow != null)
+        {
+            timerItem = new ToolStripMenuItem();
+            timerItem.Click += (_, _) => Dispatcher.Invoke(() =>
+            {
+                if (_timerWindow.WindowState != WindowState.Minimized)
+                    _timerWindow.WindowState = WindowState.Minimized;
+                else
+                    _timerWindow.WindowState = WindowState.Normal;
+            });
+            menu.Items.Add(timerItem);
+        }
+
+        if (_dpsWindow != null)
+        {
+            dpsItem = new ToolStripMenuItem();
+            dpsItem.Click += (_, _) => Dispatcher.Invoke(() =>
+            {
+                if (_dpsWindow.WindowState != WindowState.Minimized)
+                    _dpsWindow.WindowState = WindowState.Minimized;
+                else
+                    _dpsWindow.WindowState = WindowState.Normal;
+            });
+            menu.Items.Add(dpsItem);
+        }
+
+        // 메뉴가 열릴 때마다 현재 창 상태를 반영해 텍스트 갱신
+        menu.Opening += (_, _) => Dispatcher.Invoke(() =>
+        {
+            if (timerItem != null)
+                timerItem.Text = _timerWindow!.WindowState != WindowState.Minimized
+                    ? "타이머 최소화" : "타이머 복원";
+            if (dpsItem != null)
+                dpsItem.Text = _dpsWindow!.WindowState != WindowState.Minimized
+                    ? "DPS 최소화" : "DPS 복원";
+        });
+
+        if (menu.Items.Count > 0)
+            menu.Items.Add(new ToolStripSeparator());
+
+        menu.Items.Add("종료").Click += (_, _) => Dispatcher.Invoke(Shutdown);
 
         var icon = new NotifyIcon
         {

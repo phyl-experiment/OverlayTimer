@@ -50,6 +50,9 @@ namespace OverlayTimer
         [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr GetModuleHandle(string? lpModuleName);
 
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
+
         private const int WM_NCLBUTTONDOWN = 0xA1;
         private const int HTCAPTION = 0x2;
 
@@ -79,7 +82,7 @@ namespace OverlayTimer
 
         private void UpdateEditMode()
         {
-            bool wantEdit = _ctrlDown; // 전역 훅에서 세팅됨
+            bool wantEdit = IsCtrlPressed();
 
             if (_editMode == wantEdit)
                 return;
@@ -210,6 +213,12 @@ namespace OverlayTimer
             }
 
             return CallNextHookEx(_kbHook, nCode, wParam, lParam);
+        }
+
+        private static bool IsCtrlPressed()
+        {
+            return (GetAsyncKeyState(VK_LCONTROL) & 0x8000) != 0 ||
+                   (GetAsyncKeyState(VK_RCONTROL) & 0x8000) != 0;
         }
 
         private const int GWL_EXSTYLE = -20;

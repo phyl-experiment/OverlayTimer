@@ -6,23 +6,16 @@ using System.Text;
 namespace OverlayTimer.Net
 {
     /// <summary>
-    /// 임시 분석용: F9로 IDLE/DAMAGE 페이즈를 토글하며
-    /// - IDLE: 처음 등장하는 dataType만 기록
-    /// - DAMAGE: 처음 등장 dataType 기록 + 후보 타입은 매 패킷 hex 페이로드 덤프
+    /// F9로 IDLE/DAMAGE 페이즈를 전환한다.
+    /// - IDLE: 페이즈 내 최초 등장 dataType 기록
+    /// - DAMAGE: 후보 dataType의 hex payload 기록 + 알려진 데미지 구조 파싱 시도
     /// </summary>
     public sealed class PacketTypeLogger
     {
-        // 1단계에서 DAMAGE-only로 추려진 후보 타입들
-        private static readonly HashSet<int> WatchTypes = new()
-        {
-            100049, 100050, 100051, 100092, 100109, 100128, 100173, 100174,
-            100192, 100193, 100195, 100197, 100201, 100308, 100340, 100389,
-            100485, 100489, 100592, 100636, 100716, 100722, 100723, 100727,
-            100894, 100999, 101006, 101007, 101087,
-        };
-
         private readonly object _lock = new();
         private readonly string _filePath;
+        private readonly DamagePacketProbeParser _damageProbe = new();
+
         private string _phase = "IDLE";
         private readonly HashSet<int> _seenInPhase = new();
         private readonly Dictionary<int, int> _hitCounter = new();
@@ -50,9 +43,8 @@ namespace OverlayTimer.Net
 
         public void OnPacket(int dataType, ReadOnlySpan<byte> content)
         {
-            // 페이로드를 lock 밖에서 미리 복사 (ref struct는 lock 안에서 캡처 불가)
             byte[]? payloadCopy = null;
-            if (_phase == "DAMAGE" && WatchTypes.Contains(dataType))
+            if (_phase == "DAMAGE" && _damageProbe.IsCandidate(dataType))
                 payloadCopy = content.ToArray();
 
             lock (_lock)
@@ -60,13 +52,18 @@ namespace OverlayTimer.Net
                 if (_seenInPhase.Add(dataType))
                     AppendLine(dataType.ToString());
 
-                if (payloadCopy != null)
-                {
-                    _hitCounter.TryGetValue(dataType, out int n);
-                    _hitCounter[dataType] = ++n;
-                    var spaced = BitConverter.ToString(payloadCopy).Replace("-", " ");
-                    AppendLine($"  [{dataType} #{n}] {spaced}");
-                }
+                if (payloadCopy == null)
+                    return;
+
+                _hitCounter.TryGetValue(dataType, out int n);
+                _hitCounter[dataType] = ++n;
+
+                var spaced = BitConverter.ToString(payloadCopy).Replace("-", " ");
+                AppendLine($"  [{dataType} #{n}] {spaced}");
+
+                // 파싱 실패는 suppress: 성공한 경우에만 해석 라인 출력
+                if (_damageProbe.TryParseKnownDamageShape(dataType, payloadCopy, out var parsed))
+                    AppendLine($"    => {parsed}");
             }
         }
 
@@ -76,7 +73,10 @@ namespace OverlayTimer.Net
             {
                 File.AppendAllText(_filePath, line + Environment.NewLine, Encoding.UTF8);
             }
-            catch { }
+            catch
+            {
+                // ignore write failures in probe logger
+            }
         }
     }
 }
