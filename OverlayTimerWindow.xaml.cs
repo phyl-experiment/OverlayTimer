@@ -22,6 +22,9 @@ namespace OverlayTimer
         private const int WM_SYSKEYUP = 0x0105;
         private const int VK_LCONTROL = 0xA2;
         private const int VK_RCONTROL = 0xA3;
+        private const int VK_F9 = 0x78;
+
+        internal static Action? OnF9Press;
 
         private static IntPtr _kbHook = IntPtr.Zero;
         private static LowLevelKeyboardProc? _kbProc; // delegate GC 방지
@@ -46,6 +49,9 @@ namespace OverlayTimer
 
         [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr GetModuleHandle(string? lpModuleName);
+
+        [DllImport("user32.dll")]
+        private static extern short GetAsyncKeyState(int vKey);
 
         private const int WM_NCLBUTTONDOWN = 0xA1;
         private const int HTCAPTION = 0x2;
@@ -76,7 +82,7 @@ namespace OverlayTimer
 
         private void UpdateEditMode()
         {
-            bool wantEdit = _ctrlDown; // 전역 훅에서 세팅됨
+            bool wantEdit = IsCtrlPressed();
 
             if (_editMode == wantEdit)
                 return;
@@ -201,10 +207,18 @@ namespace OverlayTimer
                     int vkCode = Marshal.ReadInt32(lParam); // KBDLLHOOKSTRUCT.vkCode
                     if (vkCode == VK_LCONTROL || vkCode == VK_RCONTROL)
                         _ctrlDown = isDownMsg;
+                    if (isDownMsg && vkCode == VK_F9)
+                        OnF9Press?.Invoke();
                 }
             }
 
             return CallNextHookEx(_kbHook, nCode, wParam, lParam);
+        }
+
+        private static bool IsCtrlPressed()
+        {
+            return (GetAsyncKeyState(VK_LCONTROL) & 0x8000) != 0 ||
+                   (GetAsyncKeyState(VK_RCONTROL) & 0x8000) != 0;
         }
 
         private const int GWL_EXSTYLE = -20;

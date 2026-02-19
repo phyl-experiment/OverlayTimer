@@ -9,7 +9,9 @@
   },
   "packetTypes": {
     "buffStart": 100054,
-    "enterWorld": 101059
+    "enterWorld": 101059,
+    "dpsAttack": 20389,
+    "dpsDamage": 20897
   },
   "buffKeys": [
     1590198662,
@@ -19,5 +21,17 @@
     "activeDurationSeconds": 20,
     "cooldownShortSeconds": 32,
     "cooldownLongSeconds": 70
+  },
+  "overlays": {
+    "timer": {
+      "enabled": true,
+      "x": 500,
+      "y": 60
+    },
+    "dps": {
+      "enabled": true,
+      "x": 760,
+      "y": 60
+    }
   }
 }

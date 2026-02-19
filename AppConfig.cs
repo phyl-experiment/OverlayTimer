@@ -22,6 +22,9 @@ namespace OverlayTimer
         [JsonPropertyName("timer")]
         public TimerConfig Timer { get; set; } = new();
 
+        [JsonPropertyName("overlays")]
+        public OverlaysConfig Overlays { get; set; } = new();
+
         public static AppConfig Load()
         {
             var path = Path.Combine(AppContext.BaseDirectory, "config.json");
@@ -76,6 +79,12 @@ namespace OverlayTimer
 
         [JsonPropertyName("enterWorld")]
         public int EnterWorld { get; set; } = 101059;
+
+        [JsonPropertyName("dpsAttack")]
+        public int DpsAttack { get; set; } = 20389;
+
+        [JsonPropertyName("dpsDamage")]
+        public int DpsDamage { get; set; } = 20897;
     }
 
     public sealed class TimerConfig
@@ -88,5 +97,66 @@ namespace OverlayTimer
 
         [JsonPropertyName("cooldownLongSeconds")]
         public int CooldownLongSeconds { get; set; } = 70;
+    }
+
+    public sealed class OverlaysConfig
+    {
+        [JsonPropertyName("timer")]
+        public OverlayConfig Timer { get; set; } = new()
+        {
+            Enabled = true,
+            X = 500,
+            Y = 60
+        };
+
+        [JsonPropertyName("dps")]
+        public OverlayConfig Dps { get; set; } = new()
+        {
+            Enabled = true,
+            X = 760,
+            Y = 60
+        };
+    }
+
+    public sealed class OverlayConfig
+    {
+        [JsonPropertyName("enabled")]
+        public bool Enabled { get; set; } = true;
+
+        [JsonPropertyName("x")]
+        public double X { get; set; } = 0;
+
+        [JsonPropertyName("y")]
+        public double Y { get; set; } = 0;
+    }
+
+    public static class SkillNameMap
+    {
+        public static IReadOnlyDictionary<uint, string> Load()
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "skill_names.json");
+            if (!File.Exists(path))
+                return new Dictionary<uint, string>();
+
+            try
+            {
+                var json = File.ReadAllText(path);
+                var raw = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                if (raw == null)
+                    return new Dictionary<uint, string>();
+
+                var result = new Dictionary<uint, string>(raw.Count);
+                foreach (var kv in raw)
+                {
+                    if (uint.TryParse(kv.Key, out var id))
+                        result[id] = kv.Value;
+                }
+                return result;
+            }
+            catch
+            {
+                return new Dictionary<uint, string>();
+            }
+        }
     }
 }
