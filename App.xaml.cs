@@ -16,12 +16,15 @@ public partial class App : System.Windows.Application
     private bool _isShuttingDown;
     private OverlayTimerWindow? _timerWindow;
     private DpsOverlayWindow? _dpsWindow;
+    private AppConfig? _config;
+    private System.Windows.Threading.DispatcherTimer? _saveDebounce;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
         var config = AppConfig.Load();
+        _config = config;
         var skillNames = SkillNameMap.Load();
         var buffNames = BuffNameMap.Load();
         _cts = new CancellationTokenSource();
@@ -29,6 +32,16 @@ public partial class App : System.Windows.Application
         OverlayTimerWindow? window = null;
         ITimerTrigger timerTrigger = NoopTimerTrigger.Instance;
         PacketTypeLogger? typeLogger = null;
+
+        _saveDebounce = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(500)
+        };
+        _saveDebounce.Tick += (_, _) =>
+        {
+            _saveDebounce.Stop();
+            _config?.Save();
+        };
 
         if (config.Overlays.Timer.Enabled)
         {
@@ -39,6 +52,12 @@ public partial class App : System.Windows.Application
             };
             _timerWindow = window;
             AttachWindowCloseToAppShutdown(window);
+            window.LocationChanged += (_, _) =>
+            {
+                config.Overlays.Timer.X = window.Left;
+                config.Overlays.Timer.Y = window.Top;
+                RestartSaveDebounce();
+            };
             window.Show();
 
             timerTrigger = new OverlayTriggerTimer(window, config.Timer);
@@ -57,6 +76,12 @@ public partial class App : System.Windows.Application
                 Top = config.Overlays.Dps.Y
             };
             AttachWindowCloseToAppShutdown(_dpsWindow);
+            _dpsWindow.LocationChanged += (_, _) =>
+            {
+                config.Overlays.Dps.X = _dpsWindow.Left;
+                config.Overlays.Dps.Y = _dpsWindow.Top;
+                RestartSaveDebounce();
+            };
             _dpsWindow.Show();
         }
 
@@ -129,6 +154,13 @@ public partial class App : System.Windows.Application
     {
         CleanupForExit();
         base.OnSessionEnding(e);
+    }
+
+    private void RestartSaveDebounce()
+    {
+        if (_saveDebounce == null) return;
+        _saveDebounce.Stop();
+        _saveDebounce.Start();
     }
 
     private void AttachWindowCloseToAppShutdown(Window window)

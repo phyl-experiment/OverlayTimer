@@ -25,6 +25,8 @@ namespace OverlayTimer
         [JsonPropertyName("overlays")]
         public OverlaysConfig Overlays { get; set; } = new();
 
+        private static readonly JsonSerializerOptions _writeOptions = new() { WriteIndented = true };
+
         public static AppConfig Load()
         {
             var path = Path.Combine(AppContext.BaseDirectory, "config.json");
@@ -33,6 +35,13 @@ namespace OverlayTimer
 
             var json = File.ReadAllText(path);
             return JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
+        }
+
+        public void Save()
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "config.json");
+            var json = JsonSerializer.Serialize(this, _writeOptions);
+            File.WriteAllText(path, json);
         }
     }
 
