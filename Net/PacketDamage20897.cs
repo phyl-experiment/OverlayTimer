@@ -31,7 +31,7 @@ namespace OverlayTimer.Net
             long damage = BinaryPrimitives.ReadUInt32LittleEndian(payload.Slice(16, 4));
             byte[] flags = payload.Slice(32, 7).ToArray();
 
-            if (userId == 0 || targetId == 0 || damage <= 0)
+            if (userId == 0 || targetId == 0 || damage <= 0 || damage > 2_095_071_572)
                 return false;
 
             parsed = new PacketDamage20897(userId, targetId, damage, flags);
