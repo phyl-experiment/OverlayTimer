@@ -1,4 +1,6 @@
-﻿using System.Drawing;
+﻿using System;
+using System.Drawing;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Forms;
@@ -11,6 +13,7 @@ public partial class App : System.Windows.Application
     private CancellationTokenSource? _cts;
     private SnifferService? _sniffer;
     private NotifyIcon? _trayIcon;
+    private bool _isShuttingDown;
     private OverlayTimerWindow? _timerWindow;
     private DpsOverlayWindow? _dpsWindow;
 
@@ -34,6 +37,7 @@ public partial class App : System.Windows.Application
                 Top = config.Overlays.Timer.Y
             };
             _timerWindow = window;
+            AttachWindowCloseToAppShutdown(window);
             window.Show();
 
             timerTrigger = new OverlayTriggerTimer(window, config.Timer);
@@ -50,6 +54,7 @@ public partial class App : System.Windows.Application
                 Left = config.Overlays.Dps.X,
                 Top = config.Overlays.Dps.Y
             };
+            AttachWindowCloseToAppShutdown(_dpsWindow);
             _dpsWindow.Show();
         }
 
@@ -111,15 +116,78 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        try
+        CleanupForExit();
+        base.OnExit(e);
+    }
+
+    protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
+    {
+        CleanupForExit();
+        base.OnSessionEnding(e);
+    }
+
+    private void AttachWindowCloseToAppShutdown(Window window)
+    {
+        window.Closing += (_, _) => BeginShutdown();
+    }
+
+    private void BeginShutdown()
+    {
+        if (_isShuttingDown)
+            return;
+
+        _isShuttingDown = true;
+        Shutdown();
+    }
+
+    private void CleanupForExit()
+    {
+        _isShuttingDown = true;
+
+        if (_trayIcon != null)
         {
-            _trayIcon?.Dispose();
-            _cts?.Cancel();
-            _sniffer?.Dispose();
+            try
+            {
+                _trayIcon.Visible = false;
+            }
+            catch { /* ignore */ }
+
+            try
+            {
+                _trayIcon.ContextMenuStrip?.Dispose();
+                _trayIcon.ContextMenuStrip = null;
+            }
+            catch { /* ignore */ }
+
+            try
+            {
+                var icon = _trayIcon.Icon;
+                _trayIcon.Icon = null;
+                icon?.Dispose();
+            }
+            catch { /* ignore */ }
+
+            try
+            {
+                _trayIcon.Dispose();
+            }
+            catch { /* ignore */ }
+
+            _trayIcon = null;
         }
+
+        try { _cts?.Cancel(); }
         catch { /* ignore */ }
 
-        base.OnExit(e);
+        try { _sniffer?.Dispose(); }
+        catch { /* ignore */ }
+
+        _sniffer = null;
+
+        try { _cts?.Dispose(); }
+        catch { /* ignore */ }
+
+        _cts = null;
     }
 
     private NotifyIcon CreateTrayIcon()
@@ -169,7 +237,7 @@ public partial class App : System.Windows.Application
         if (menu.Items.Count > 0)
             menu.Items.Add(new ToolStripSeparator());
 
-        menu.Items.Add("종료").Click += (_, _) => Dispatcher.Invoke(Shutdown);
+        menu.Items.Add("종료").Click += (_, _) => Dispatcher.Invoke(BeginShutdown);
 
         var icon = new NotifyIcon
         {
@@ -192,7 +260,17 @@ public partial class App : System.Windows.Application
             g.DrawLine(pen, 8, 8, 8, 3);
             g.DrawLine(pen, 8, 8, 12, 8);
         }
-        return Icon.FromHandle(bmp.GetHicon());
+
+        var hIcon = bmp.GetHicon();
+        try
+        {
+            using var icon = Icon.FromHandle(hIcon);
+            return (Icon)icon.Clone();
+        }
+        finally
+        {
+            DestroyIcon(hIcon);
+        }
     }
 
     private void ShowStartupError(string message, string detail)
@@ -203,7 +281,9 @@ public partial class App : System.Windows.Application
             System.Windows.MessageBoxButton.OK,
             System.Windows.MessageBoxImage.Warning);
 
-        Shutdown();
+        BeginShutdown();
     }
-}
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
+}
