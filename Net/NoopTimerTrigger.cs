@@ -8,7 +8,7 @@ namespace OverlayTimer.Net
         {
         }
 
-        public void On()
+        public void On(TimerTriggerRequest request)
         {
             // intentionally no-op
         }

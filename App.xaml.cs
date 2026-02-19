@@ -70,7 +70,8 @@ public partial class App : System.Windows.Application
             typeLogger,
             dpsTracker,
             config.PacketTypes.DpsAttack,
-            config.PacketTypes.DpsDamage);
+            config.PacketTypes.DpsDamage,
+            config.Timer.ActiveDurationSeconds);
 
         _sniffer = new SnifferService(config.Network.TargetPort, config.Network.DeviceName, packetHandler, config.Protocol);
         try

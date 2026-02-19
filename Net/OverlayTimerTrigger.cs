@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Media;
 using System.Windows.Threading;
 
@@ -17,10 +17,14 @@ namespace OverlayTimer.Net
 
         private Phase _phase = Phase.Idle;
 
-        private readonly TimeSpan _activeDuration;
-        private readonly TimeSpan _cooldown32;
-        private readonly TimeSpan _cooldown70;
-        private TimeSpan _cooldownDuration;
+        private readonly TimeSpan _defaultActiveDuration;
+        private readonly TimeSpan _cooldownShort;
+        private readonly TimeSpan _cooldownLong;
+        private TimeSpan _manualCooldownDuration;
+
+        private TimeSpan _currentActiveDuration;
+        private TimeSpan _currentCooldownDuration;
+        private bool _runtimeCooldownForCurrentCycle;
 
         public OverlayTriggerTimer(OverlayTimerWindow window, TimerConfig timer)
         {
@@ -28,21 +32,25 @@ namespace OverlayTimer.Net
             _ui = window.Dispatcher;
             _window.PreviewMouseRightButtonDown += OnWindowPreviewRightDown;
 
-            _activeDuration = TimeSpan.FromSeconds(timer.ActiveDurationSeconds);
-            _cooldown32 = TimeSpan.FromSeconds(timer.CooldownShortSeconds);
-            _cooldown70 = TimeSpan.FromSeconds(timer.CooldownLongSeconds);
-            _cooldownDuration = _cooldown70;
+            _defaultActiveDuration = TimeSpan.FromSeconds(timer.ActiveDurationSeconds);
+            _cooldownShort = TimeSpan.FromSeconds(timer.CooldownShortSeconds);
+            _cooldownLong = TimeSpan.FromSeconds(timer.CooldownLongSeconds);
+            _manualCooldownDuration = _cooldownLong;
+
+            _currentActiveDuration = _defaultActiveDuration;
+            _currentCooldownDuration = _manualCooldownDuration;
 
             _tick = new DispatcherTimer(DispatcherPriority.Render, _ui)
             {
-                Interval = TimeSpan.FromMilliseconds(33) // 30fps 정도
+                Interval = TimeSpan.FromMilliseconds(33)
             };
             _tick.Tick += (_, __) => UpdateUi();
+
+            SetReadyUi();
         }
 
         private void OnWindowPreviewRightDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            // Ctrl+우클릭만 토글 (드래그용 Ctrl+좌클릭과 안 겹침)
             if ((System.Windows.Input.Keyboard.Modifiers & System.Windows.Input.ModifierKeys.Control) == 0)
                 return;
 
@@ -50,16 +58,32 @@ namespace OverlayTimer.Net
             e.Handled = true;
         }
 
-        // 패킷에서 "버프 ON"으로 판정됐을 때 호출
-        public void On()
+        public void On(TimerTriggerRequest request)
         {
             _ui.BeginInvoke(() =>
             {
-                // 이미 Active면 중복 ON 무시 (깜빡임 방지 핵심)
-                if (_phase == Phase.Active) return;
+                if (_phase == Phase.Active)
+                    return;
+
+                var activeDuration = NormalizeDuration(request.ActiveDuration, _defaultActiveDuration);
+                TimeSpan cooldownDuration;
+
+                if (request.CooldownDuration.HasValue)
+                {
+                    cooldownDuration = NormalizeDuration(request.CooldownDuration.Value, _manualCooldownDuration);
+                    _runtimeCooldownForCurrentCycle = true;
+                }
+                else
+                {
+                    cooldownDuration = _manualCooldownDuration;
+                    _runtimeCooldownForCurrentCycle = false;
+                }
+
+                _currentActiveDuration = activeDuration;
+                _currentCooldownDuration = cooldownDuration;
 
                 SystemSounds.Asterisk.Play();
-                StartPhase(Phase.Active, _activeDuration, $"Active ({(int)_activeDuration.TotalSeconds}s)");
+                StartPhase(Phase.Active, _currentActiveDuration, GetActiveModeText());
             });
         }
 
@@ -83,27 +107,29 @@ namespace OverlayTimer.Net
             if (_phase == Phase.Idle)
             {
                 _tick.Stop();
-                _window.Hide();
+                SetReadyUi();
                 return;
             }
 
             var elapsed = DateTime.UtcNow - _phaseStartUtc;
             var remaining = _phaseDuration - elapsed;
-            if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
+            if (remaining < TimeSpan.Zero)
+                remaining = TimeSpan.Zero;
 
             double progress01 = 1.0 - (elapsed.TotalSeconds / _phaseDuration.TotalSeconds);
-            if (progress01 < 0) progress01 = 0;
-            if (progress01 > 1) progress01 = 1;
+            if (progress01 < 0)
+                progress01 = 0;
+            if (progress01 > 1)
+                progress01 = 1;
 
             _window.SetTime($"{remaining.TotalSeconds:0.0}s");
             _window.SetProgress(progress01);
 
-            // Phase 완료 처리
             if (remaining <= TimeSpan.Zero)
             {
                 if (_phase == Phase.Active)
                 {
-                    StartPhase(Phase.Cooldown, _cooldownDuration, $"Cooldown ({(int)_cooldownDuration.TotalSeconds}s)");
+                    StartPhase(Phase.Cooldown, _currentCooldownDuration, GetCooldownModeText(_currentCooldownDuration));
                     return;
                 }
 
@@ -111,7 +137,7 @@ namespace OverlayTimer.Net
                 {
                     _phase = Phase.Idle;
                     _tick.Stop();
-                    _window.Hide();
+                    SetReadyUi();
                 }
             }
         }
@@ -120,20 +146,66 @@ namespace OverlayTimer.Net
         {
             _ui.BeginInvoke(() =>
             {
-                _cooldownDuration = (_cooldownDuration == _cooldown32) ? _cooldown70 : _cooldown32;
+                _manualCooldownDuration = (_manualCooldownDuration == _cooldownShort)
+                    ? _cooldownLong
+                    : _cooldownShort;
 
                 if (_phase == Phase.Cooldown)
                 {
+                    _runtimeCooldownForCurrentCycle = false;
+                    _currentCooldownDuration = _manualCooldownDuration;
+
                     var elapsed = DateTime.UtcNow - _phaseStartUtc;
-                    _phaseDuration = _cooldownDuration;
+                    _phaseDuration = _currentCooldownDuration;
 
                     if (elapsed >= _phaseDuration)
                         _phaseStartUtc = DateTime.UtcNow - _phaseDuration;
+
+                    _window.SetMode(GetCooldownModeText(_currentCooldownDuration));
+                    UpdateUi();
+                    return;
                 }
 
-                _window.SetMode($"Cooldown ({(int)_cooldownDuration.TotalSeconds}s)");
-                UpdateUi();
+                if (_phase == Phase.Active && !_runtimeCooldownForCurrentCycle)
+                {
+                    _currentCooldownDuration = _manualCooldownDuration;
+                }
+
+                if (_phase == Phase.Active)
+                    _window.SetMode(GetActiveModeText());
+                else if (_phase == Phase.Idle)
+                    _window.SetMode(GetReadyModeText());
             });
+        }
+
+        private static TimeSpan NormalizeDuration(TimeSpan candidate, TimeSpan fallback)
+        {
+            if (candidate <= TimeSpan.Zero || candidate > TimeSpan.FromMinutes(10))
+                return fallback;
+
+            return candidate;
+        }
+
+        private void SetReadyUi()
+        {
+            _window.SetMode(GetReadyModeText());
+            _window.SetTime("0.0s");
+            _window.SetProgress(0);
+        }
+
+        private string GetReadyModeText()
+        {
+            return $"READY (CD {(int)_manualCooldownDuration.TotalSeconds}s)";
+        }
+
+        private string GetActiveModeText()
+        {
+            return $"Active ({(int)_currentActiveDuration.TotalSeconds}s / CD {(int)_currentCooldownDuration.TotalSeconds}s)";
+        }
+
+        private static string GetCooldownModeText(TimeSpan cooldownDuration)
+        {
+            return $"Cooldown ({(int)cooldownDuration.TotalSeconds}s)";
         }
     }
 }

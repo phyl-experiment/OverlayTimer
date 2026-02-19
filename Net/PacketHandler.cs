@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace OverlayTimer.Net
@@ -13,6 +13,8 @@ namespace OverlayTimer.Net
         private readonly DpsTracker? _dpsTracker;
         private readonly int _dpsAttackType;
         private readonly int _dpsDamageType;
+        private readonly TimeSpan _defaultActiveDuration;
+
         private readonly List<PendingDamage> _pendingDamages = new();
         private ulong _lastSelfId;
 
@@ -24,7 +26,8 @@ namespace OverlayTimer.Net
             PacketTypeLogger? logger = null,
             DpsTracker? dpsTracker = null,
             int dpsAttackType = 20389,
-            int dpsDamageType = 20897)
+            int dpsDamageType = 20897,
+            int defaultActiveDurationSeconds = 20)
         {
             _timerTrigger = timerTrigger;
             _selfIdResolver = selfIdResolver;
@@ -34,46 +37,78 @@ namespace OverlayTimer.Net
             _dpsTracker = dpsTracker;
             _dpsAttackType = dpsAttackType;
             _dpsDamageType = dpsDamageType;
+            _defaultActiveDuration = TimeSpan.FromSeconds(Math.Max(1, defaultActiveDurationSeconds));
         }
 
         public void OnPacket(int dataType, ReadOnlySpan<byte> content)
         {
-            if (_logger != null) _logger.OnPacket(dataType, content);
+            _logger?.OnPacket(dataType, content);
+
             TryHandleDps(dataType, content);
 
             if (dataType == _buffStartDataType)
             {
-                var parsed = PacketBuffStart.Parse(content);
-                if (Array.IndexOf(_buffKeys, parsed.BuffKey) < 0)
-                    return;
-
-                LogHelper.Write($"[Light] id {parsed.UserId} current {_selfIdResolver.SelfId}");
-
-                if (_selfIdResolver.SelfId != 0 && parsed.UserId != _selfIdResolver.SelfId)
-                {
-                    LogHelper.Write($"{parsed.UserId} diff {_selfIdResolver.SelfId}");
-                    return;
-                }
-
-                LogHelper.Write($"Timer On {_selfIdResolver.SelfId}");
-                _timerTrigger.On();
+                HandleBuffStart(content);
+                return;
             }
-            else
+
+            var parsedId = _selfIdResolver.TryFeed(dataType, content);
+            if (parsedId == 0)
+                return;
+
+            // Reset DPS only when the self ID actually changes (e.g. character switch).
+            if (_dpsTracker != null && _lastSelfId != 0 && parsedId != _lastSelfId)
             {
-                var parsedId = _selfIdResolver.TryFeed(dataType, content);
-                if (parsedId != 0)
-                {
-                    // Reset DPS only when the self ID actually changes (e.g. character switch).
-                    if (_dpsTracker != null && _lastSelfId != 0 && parsedId != _lastSelfId)
-                    {
-                        _dpsTracker.Reset();
-                        _pendingDamages.Clear();
-                    }
-
-                    _lastSelfId = parsedId;
-                    LogHelper.Write($"{dataType}:{parsedId}");
-                }
+                _dpsTracker.Reset();
+                _pendingDamages.Clear();
             }
+
+            _lastSelfId = parsedId;
+            LogHelper.Write($"{dataType}:{parsedId}");
+        }
+
+        private void HandleBuffStart(ReadOnlySpan<byte> content)
+        {
+            var parsed = PacketBuffStart.Parse(content);
+            if (Array.IndexOf(_buffKeys, parsed.BuffKey) < 0)
+                return;
+
+            LogHelper.Write($"[Light] id {parsed.UserId} current {_selfIdResolver.SelfId}");
+
+            if (_selfIdResolver.SelfId != 0 && parsed.UserId != _selfIdResolver.SelfId)
+            {
+                LogHelper.Write($"{parsed.UserId} diff {_selfIdResolver.SelfId}");
+                return;
+            }
+
+            var activeDuration = ResolveActiveDuration(parsed);
+            _timerTrigger.On(new TimerTriggerRequest(parsed.BuffKey, activeDuration));
+
+            LogHelper.Write(
+                $"Timer On {parsed.UserId} key={parsed.BuffKey} active={activeDuration.TotalSeconds:0.#}s cooldown=fallback(manual)");
+        }
+
+        private TimeSpan ResolveActiveDuration(PacketBuffStart parsed)
+        {
+            if (TryResolveDuration(parsed.Value1, out var activeDuration))
+                return activeDuration;
+
+            return _defaultActiveDuration;
+        }
+
+        private static bool TryResolveDuration(float valueSeconds, out TimeSpan duration)
+        {
+            duration = default;
+
+            if (float.IsNaN(valueSeconds) || float.IsInfinity(valueSeconds))
+                return false;
+
+            if (valueSeconds < 1f || valueSeconds > 180f)
+                return false;
+
+            var rounded = Math.Round(valueSeconds, 1, MidpointRounding.AwayFromZero);
+            duration = TimeSpan.FromSeconds(rounded);
+            return true;
         }
 
         private void TryHandleDps(int dataType, ReadOnlySpan<byte> content)

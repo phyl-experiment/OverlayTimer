@@ -6,7 +6,7 @@ public static class LogHelper
 {
     private static readonly object _lock = new object();
     private static readonly string _logDir;
-    public static Boolean Disabled = true;
+    public static Boolean Disabled = false;
 
     static LogHelper()
     {

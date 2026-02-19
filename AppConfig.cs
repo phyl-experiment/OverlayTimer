@@ -17,7 +17,7 @@ namespace OverlayTimer
         public PacketTypesConfig PacketTypes { get; set; } = new();
 
         [JsonPropertyName("buffKeys")]
-        public uint[] BuffKeys { get; set; } = [1590198662u, 2024838942u];
+        public uint[] BuffKeys { get; set; } = [1590198662u, 2024838942u, 1184371696u];
 
         [JsonPropertyName("timer")]
         public TimerConfig Timer { get; set; } = new();
