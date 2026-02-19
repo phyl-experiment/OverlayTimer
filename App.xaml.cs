@@ -23,6 +23,7 @@ public partial class App : System.Windows.Application
 
         var config = AppConfig.Load();
         var skillNames = SkillNameMap.Load();
+        var buffNames = BuffNameMap.Load();
         _cts = new CancellationTokenSource();
 
         OverlayTimerWindow? window = null;
@@ -47,9 +48,10 @@ public partial class App : System.Windows.Application
         }
 
         var dpsTracker = new DpsTracker();
+        var buffUptimeTracker = new BuffUptimeTracker();
         if (config.Overlays.Dps.Enabled)
         {
-            _dpsWindow = new DpsOverlayWindow(dpsTracker, skillNames)
+            _dpsWindow = new DpsOverlayWindow(dpsTracker, skillNames, buffUptimeTracker, buffNames)
             {
                 Left = config.Overlays.Dps.X,
                 Top = config.Overlays.Dps.Y
@@ -66,9 +68,11 @@ public partial class App : System.Windows.Application
             timerTrigger,
             selfIdResolver,
             config.PacketTypes.BuffStart,
+            config.PacketTypes.BuffEnd,
             config.BuffKeys,
             typeLogger,
             dpsTracker,
+            buffUptimeTracker,
             config.PacketTypes.DpsAttack,
             config.PacketTypes.DpsDamage,
             config.Timer.ActiveDurationSeconds);

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace OverlayTimer.Net
@@ -8,23 +8,29 @@ namespace OverlayTimer.Net
         private readonly ITimerTrigger _timerTrigger;
         private readonly SelfIdResolver _selfIdResolver;
         private readonly int _buffStartDataType;
-        private readonly uint[] _buffKeys;
+        private readonly int _buffEndDataType;
+        private readonly HashSet<uint> _buffKeySet;
         private readonly PacketTypeLogger? _logger;
         private readonly DpsTracker? _dpsTracker;
+        private readonly BuffUptimeTracker? _buffUptimeTracker;
         private readonly int _dpsAttackType;
         private readonly int _dpsDamageType;
         private readonly TimeSpan _defaultActiveDuration;
 
         private readonly List<PendingDamage> _pendingDamages = new();
+        private readonly Dictionary<ulong, TrackedBuffStart> _trackedBuffStartsByInstKey = new();
+        private static readonly TimeSpan BuffTrackKeep = TimeSpan.FromMinutes(3);
         private ulong _lastSelfId;
 
         public PacketHandler(
             ITimerTrigger timerTrigger,
             SelfIdResolver selfIdResolver,
             int buffStartDataType,
+            int buffEndDataType,
             uint[] buffKeys,
             PacketTypeLogger? logger = null,
             DpsTracker? dpsTracker = null,
+            BuffUptimeTracker? buffUptimeTracker = null,
             int dpsAttackType = 20389,
             int dpsDamageType = 20897,
             int defaultActiveDurationSeconds = 20)
@@ -32,9 +38,11 @@ namespace OverlayTimer.Net
             _timerTrigger = timerTrigger;
             _selfIdResolver = selfIdResolver;
             _buffStartDataType = buffStartDataType;
-            _buffKeys = buffKeys;
+            _buffEndDataType = buffEndDataType;
+            _buffKeySet = new HashSet<uint>(buffKeys ?? Array.Empty<uint>());
             _logger = logger;
             _dpsTracker = dpsTracker;
+            _buffUptimeTracker = buffUptimeTracker;
             _dpsAttackType = dpsAttackType;
             _dpsDamageType = dpsDamageType;
             _defaultActiveDuration = TimeSpan.FromSeconds(Math.Max(1, defaultActiveDurationSeconds));
@@ -52,15 +60,23 @@ namespace OverlayTimer.Net
                 return;
             }
 
+            if (dataType == _buffEndDataType)
+            {
+                HandleBuffEnd(content);
+                return;
+            }
+
             var parsedId = _selfIdResolver.TryFeed(dataType, content);
             if (parsedId == 0)
                 return;
 
-            // Reset DPS only when the self ID actually changes (e.g. character switch).
-            if (_dpsTracker != null && _lastSelfId != 0 && parsedId != _lastSelfId)
+            // Reset DPS and tracked buff instances only when the self ID actually changes.
+            if (_lastSelfId != 0 && parsedId != _lastSelfId)
             {
-                _dpsTracker.Reset();
+                _dpsTracker?.Reset();
+                _buffUptimeTracker?.Reset();
                 _pendingDamages.Clear();
+                _trackedBuffStartsByInstKey.Clear();
             }
 
             _lastSelfId = parsedId;
@@ -70,27 +86,90 @@ namespace OverlayTimer.Net
         private void HandleBuffStart(ReadOnlySpan<byte> content)
         {
             var parsed = PacketBuffStart.Parse(content);
-            if (Array.IndexOf(_buffKeys, parsed.BuffKey) < 0)
-                return;
 
-            LogHelper.Write($"[Light] id {parsed.UserId} current {_selfIdResolver.SelfId}");
-
-            if (_selfIdResolver.SelfId != 0 && parsed.UserId != _selfIdResolver.SelfId)
-            {
-                LogHelper.Write($"{parsed.UserId} diff {_selfIdResolver.SelfId}");
+            ulong selfId = _selfIdResolver.SelfId;
+            if (selfId != 0 && parsed.UserId != selfId)
                 return;
-            }
 
             var activeDuration = ResolveActiveDuration(parsed);
+
+            // 모든 버프의 가동률을 추적 (buffKeys 필터 무관)
+            _buffUptimeTracker?.OnBuffStart(parsed.BuffKey, parsed.InstKey, activeDuration);
+
+            if (!_buffKeySet.Contains(parsed.BuffKey))
+                return;
+
+            TrackBuffStart(parsed, activeDuration);
             _timerTrigger.On(new TimerTriggerRequest(parsed.BuffKey, activeDuration));
 
             LogHelper.Write(
-                $"Timer On {parsed.UserId} key={parsed.BuffKey} active={activeDuration.TotalSeconds:0.#}s cooldown=fallback(manual)");
+                $"[BuffStart] user={parsed.UserId} key={parsed.BuffKey} inst={parsed.InstKey} duration={activeDuration.TotalSeconds:0.#}s");
+        }
+
+        private void HandleBuffEnd(ReadOnlySpan<byte> content)
+        {
+            var parsed = PacketBuffEnd.Parse(content);
+
+            ulong selfId = _selfIdResolver.SelfId;
+            if (selfId != 0 && parsed.UserId != selfId)
+                return;
+
+            // 모든 버프의 가동률 종료 처리 (instKey 기반, buffKeys 필터 무관)
+            _buffUptimeTracker?.OnBuffEnd(parsed.InstKey);
+
+            CleanupTrackedBuffStarts();
+
+            if (parsed.InstKey == 0)
+                return;
+
+            if (!_trackedBuffStartsByInstKey.TryGetValue(parsed.InstKey, out var tracked))
+            {
+                LogHelper.Write(
+                    $"[BuffEnd] user={parsed.UserId} inst={parsed.InstKey} state={parsed.State} matched=0");
+                return;
+            }
+
+            _trackedBuffStartsByInstKey.Remove(parsed.InstKey);
+
+            var elapsed = DateTime.UtcNow - tracked.StartUtc;
+            LogHelper.Write(
+                $"[BuffEnd] user={parsed.UserId} key={tracked.BuffKey} inst={parsed.InstKey} state={parsed.State} matched=1 elapsed={elapsed.TotalSeconds:0.#}s startDuration={tracked.StartDuration.TotalSeconds:0.#}s");
+        }
+
+        private void TrackBuffStart(PacketBuffStart parsed, TimeSpan activeDuration)
+        {
+            if (parsed.InstKey == 0)
+                return;
+
+            CleanupTrackedBuffStarts();
+            _trackedBuffStartsByInstKey[parsed.InstKey] = new TrackedBuffStart(
+                parsed.UserId,
+                parsed.BuffKey,
+                activeDuration,
+                DateTime.UtcNow);
+        }
+
+        private void CleanupTrackedBuffStarts()
+        {
+            if (_trackedBuffStartsByInstKey.Count == 0)
+                return;
+
+            DateTime cutoff = DateTime.UtcNow - BuffTrackKeep;
+            var stale = new List<ulong>();
+
+            foreach (var kv in _trackedBuffStartsByInstKey)
+            {
+                if (kv.Value.StartUtc < cutoff)
+                    stale.Add(kv.Key);
+            }
+
+            for (int i = 0; i < stale.Count; i++)
+                _trackedBuffStartsByInstKey.Remove(stale[i]);
         }
 
         private TimeSpan ResolveActiveDuration(PacketBuffStart parsed)
         {
-            if (TryResolveDuration(parsed.Value1, out var activeDuration))
+            if (TryResolveDuration(parsed.DurationSeconds, out var activeDuration))
                 return activeDuration;
 
             return _defaultActiveDuration;
@@ -167,6 +246,22 @@ namespace OverlayTimer.Net
         {
             var cutoff = DateTime.UtcNow - TimeSpan.FromSeconds(2);
             _pendingDamages.RemoveAll(x => x.ReceivedUtc < cutoff);
+        }
+
+        private readonly struct TrackedBuffStart
+        {
+            public ulong UserId { get; }
+            public uint BuffKey { get; }
+            public TimeSpan StartDuration { get; }
+            public DateTime StartUtc { get; }
+
+            public TrackedBuffStart(ulong userId, uint buffKey, TimeSpan startDuration, DateTime startUtc)
+            {
+                UserId = userId;
+                BuffKey = buffKey;
+                StartDuration = startDuration;
+                StartUtc = startUtc;
+            }
         }
 
         private readonly struct PendingDamage

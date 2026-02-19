@@ -28,9 +28,12 @@ namespace OverlayTimer
 
         private readonly DpsTracker _tracker;
         private readonly IReadOnlyDictionary<uint, string> _skillNames;
+        private readonly Net.BuffUptimeTracker _buffUptimeTracker;
+        private readonly IReadOnlyDictionary<uint, string> _buffNames;
         private readonly DispatcherTimer _uiTimer;
         private bool _showTargets;
         private bool _showSkills;
+        private bool _showBuffs;
         private bool _editMode;
         private readonly HashSet<ulong> _selectedTargetIds = new();
         private bool _suppressSelectionChanged;
@@ -70,11 +73,14 @@ namespace OverlayTimer
         private const int WS_EX_LAYERED = 0x80000;
         private const int WS_EX_TRANSPARENT = 0x20;
 
-        public DpsOverlayWindow(DpsTracker tracker, IReadOnlyDictionary<uint, string> skillNames)
+        public DpsOverlayWindow(DpsTracker tracker, IReadOnlyDictionary<uint, string> skillNames,
+            Net.BuffUptimeTracker buffUptimeTracker, IReadOnlyDictionary<uint, string> buffNames)
         {
             InitializeComponent();
             _tracker = tracker;
             _skillNames = skillNames;
+            _buffUptimeTracker = buffUptimeTracker;
+            _buffNames = buffNames;
 
             EnsureKeyboardHook();
             Closed += (_, _) => RemoveKeyboardHook();
@@ -116,6 +122,7 @@ namespace OverlayTimer
         private void ResetButton_Click(object sender, RoutedEventArgs e)
         {
             _tracker.Reset();
+            _buffUptimeTracker.Reset();
             _selectedTargetIds.Clear();
             RefreshUi();
         }
@@ -130,6 +137,12 @@ namespace OverlayTimer
         {
             _showSkills = !_showSkills;
             SkillPanel.Visibility = _showSkills ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void BuffToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            _showBuffs = !_showBuffs;
+            BuffPanel.Visibility = _showBuffs ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void TargetItems_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -196,6 +209,39 @@ namespace OverlayTimer
                 });
             }
             SkillItems.ItemsSource = skillRows;
+
+            // 버프 패널 갱신
+            // % 분모: DPS elapsed (전투 시작~마지막 타격)를 우선 사용, 없으면 버프 내부 elapsed
+            var buffSnapshot = _buffUptimeTracker.GetSnapshot();
+            double buffRef = snapshot.ElapsedSeconds > 0 ? snapshot.ElapsedSeconds : buffSnapshot.ElapsedSeconds;
+
+            var buffRows = new List<BuffRow>(buffSnapshot.Rows.Count);
+            foreach (var buff in buffSnapshot.Rows)
+            {
+                double pct = buffRef > 0 ? Math.Min(buff.TotalSeconds / buffRef * 100.0, 100.0) : 0.0;
+                string buffLabel = buff.IsActive
+                    ? $"● {ResolveBuffLabel(buff.BuffKey)}"
+                    : ResolveBuffLabel(buff.BuffKey);
+                string uptimeLabel = buff.IsActive
+                    ? $"{buff.RemainingSeconds:0.0}s \ub0a8\uc74c  (\uc5f0: {buff.TotalSeconds:0.0}s  {pct:0.0}%)"
+                    : $"\uc5f0: {buff.TotalSeconds:0.0}s  {pct:0.0}%";
+
+                buffRows.Add(new BuffRow
+                {
+                    BuffLabel = buffLabel,
+                    UptimeLabel = uptimeLabel
+                });
+            }
+            BuffItems.ItemsSource = buffRows;
+            BuffElapsedText.Text = $"\uAE30\uC900: {buffRef:0.0}s";
+        }
+
+        private string ResolveBuffLabel(uint buffKey)
+        {
+            if (_buffNames.TryGetValue(buffKey, out var name) && !string.IsNullOrWhiteSpace(name))
+                return name;
+
+            return $"Buff {buffKey}";
         }
 
         private string ResolveSkillLabel(uint skillType)
@@ -307,6 +353,12 @@ namespace OverlayTimer
             public string SkillLabel { get; set; } = string.Empty;
             public string RatioLabel { get; set; } = string.Empty;
             public string FlagLabel { get; set; } = string.Empty;
+        }
+
+        private sealed class BuffRow
+        {
+            public string BuffLabel { get; set; } = string.Empty;
+            public string UptimeLabel { get; set; } = string.Empty;
         }
     }
 }

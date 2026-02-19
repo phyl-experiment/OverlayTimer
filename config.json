@@ -9,6 +9,7 @@
   },
   "packetTypes": {
     "buffStart": 100054,
+    "buffEnd": 100055,
     "enterWorld": 101059,
     "dpsAttack": 20389,
     "dpsDamage": 20897

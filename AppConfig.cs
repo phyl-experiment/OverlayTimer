@@ -77,6 +77,9 @@ namespace OverlayTimer
         [JsonPropertyName("buffStart")]
         public int BuffStart { get; set; } = 100054;
 
+        [JsonPropertyName("buffEnd")]
+        public int BuffEnd { get; set; } = 100055;
+
         [JsonPropertyName("enterWorld")]
         public int EnterWorld { get; set; } = 101059;
 
@@ -128,6 +131,36 @@ namespace OverlayTimer
 
         [JsonPropertyName("y")]
         public double Y { get; set; } = 0;
+    }
+
+    public static class BuffNameMap
+    {
+        public static IReadOnlyDictionary<uint, string> Load()
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "buff_names.json");
+            if (!File.Exists(path))
+                return new Dictionary<uint, string>();
+
+            try
+            {
+                var json = File.ReadAllText(path);
+                var raw = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                if (raw == null)
+                    return new Dictionary<uint, string>();
+
+                var result = new Dictionary<uint, string>(raw.Count);
+                foreach (var kv in raw)
+                {
+                    if (uint.TryParse(kv.Key, out var id))
+                        result[id] = kv.Value;
+                }
+                return result;
+            }
+            catch
+            {
+                return new Dictionary<uint, string>();
+            }
+        }
     }
 
     public static class SkillNameMap

@@ -18,10 +18,26 @@
                 CornerRadius="16"
                 Padding="14">
             <StackPanel>
-                <TextBlock Text="TOTAL DPS"
-                           Foreground="#FFECEFF1"
-                           FontSize="13"
-                           FontWeight="SemiBold"/>
+                <!-- 헤더: TOTAL DPS 레이블 + 초기화 (데이터 리셋 액션, 토글과 맥락 구분) -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="TOTAL DPS"
+                               Foreground="#FFECEFF1"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"/>
+                    <Button x:Name="ResetButton"
+                            Grid.Column="1"
+                            Width="54"
+                            Height="20"
+                            FontSize="11"
+                            Content="&#xCD08;&#xAE30;&#xD654;"
+                            Click="ResetButton_Click"
+                            VerticalAlignment="Center"/>
+                </Grid>
 
                 <TextBlock x:Name="DpsText"
                            Text="0.0&#xB9CC;"
@@ -35,35 +51,40 @@
                            Foreground="#FFDDE5EB"
                            FontSize="13"/>
 
+                <!-- 버튼 행: 연동 패널 그룹 + 독립 패널 -->
                 <Grid Margin="0,10,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="8"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="10"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <Button x:Name="ResetButton"
-                            Grid.Column="0"
-                            Width="74"
-                            Height="26"
-                            Content="&#xCD08;&#xAE30;&#xD654;"
-                            Click="ResetButton_Click"/>
+                    <!-- 대상별+스킬별: 선택 대상에 따라 스킬 통계가 연동되는 그룹 -->
+                    <Border Grid.Column="0"
+                            Background="#1AFFFFFF"
+                            CornerRadius="6"
+                            Padding="2">
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="TargetToggleButton"
+                                    Width="108"
+                                    Height="22"
+                                    Content="&#xB300;&#xC0C1;&#xBCC4; &#xB370;&#xBBF8;&#xC9C0;"
+                                    Click="TargetToggleButton_Click"/>
+                            <Button x:Name="SkillToggleButton"
+                                    Width="96"
+                                    Height="22"
+                                    Margin="4,0,0,0"
+                                    Content="&#xC2A4;&#xD0AC;&#xBCC4; &#xD1B5;&#xACC4;"
+                                    Click="SkillToggleButton_Click"/>
+                        </StackPanel>
+                    </Border>
 
-                    <Button x:Name="TargetToggleButton"
+                    <Button x:Name="BuffToggleButton"
                             Grid.Column="2"
-                            Width="108"
+                            Width="90"
                             Height="26"
-                            Content="&#xB300;&#xC0C1;&#xBCC4; &#xB370;&#xBBF8;&#xC9C0;"
-                            Click="TargetToggleButton_Click"/>
-
-                    <Button x:Name="SkillToggleButton"
-                            Grid.Column="4"
-                            Width="96"
-                            Height="26"
-                            Content="&#xC2A4;&#xD0AC;&#xBCC4; &#xD1B5;&#xACC4;"
-                            Click="SkillToggleButton_Click"/>
+                            Content="&#xBC84;&#xD504; &#xAC00;&#xB3D9;&#xB960;"
+                            Click="BuffToggleButton_Click"/>
                 </Grid>
 
                 <Border x:Name="TargetPanel"
@@ -192,6 +213,58 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </ScrollViewer>
+                    </StackPanel>
+                </Border>
+                <Border x:Name="BuffPanel"
+                        Visibility="Collapsed"
+                        Margin="0,10,0,0"
+                        Padding="8"
+                        Background="#33141F27"
+                        CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock x:Name="BuffPanelTitle"
+                                   Text="&#xBC84;&#xD504; &#xAC00;&#xB3D9;&#xB960;"
+                                   Foreground="#FFDDE5EB"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,6"/>
+
+                        <ScrollViewer Height="180"
+                                      VerticalScrollBarVisibility="Auto">
+                            <ItemsControl x:Name="BuffItems">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,2"
+                                                Padding="4,3"
+                                                Background="#22FFFFFF"
+                                                CornerRadius="4">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding BuffLabel}"
+                                                           Foreground="White"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding UptimeLabel}"
+                                                           Foreground="#FFFFCC44"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <TextBlock x:Name="BuffElapsedText"
+                                   Foreground="#FF8899AA"
+                                   FontSize="11"
+                                   Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
             </StackPanel>

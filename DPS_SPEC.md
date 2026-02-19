@@ -168,7 +168,7 @@ OverlayTimer에서 전투 중 실시간 DPS와 대상별 데미지, 스킬별 �
 
 ### config.json
 
-packetTypes: buffStart(100054), enterWorld(101059), dpsAttack(20389), dpsDamage(20897)
+packetTypes: buffStart(100054), buffEnd(100055), enterWorld(101059), dpsAttack(20389), dpsDamage(20897)
 overlays: timer(enabled, x, y), dps(enabled, x, y)
 
 ### skill_names.json
