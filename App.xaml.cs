@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -15,9 +15,23 @@ public partial class App : System.Windows.Application
     private NotifyIcon? _trayIcon;
     private bool _isShuttingDown;
     private OverlayTimerWindow? _timerWindow;
-    private DpsOverlayWindow? _dpsWindow;
-    private AppConfig? _config;
+    private DpsOverlayWindow?   _dpsWindow;
+    private AppConfig?           _config;
     private System.Windows.Threading.DispatcherTimer? _saveDebounce;
+
+    // 프로브 결과 확인 대기
+    private const int ConfirmThreshold      = 3;   // 인식된 패킷 수
+    private const int ConfirmTimeoutSeconds = 120;  // 타임아웃
+    private bool _probePendingConfirmation;
+    private System.Windows.Threading.DispatcherTimer? _confirmTimer;
+    private DateTime _confirmDeadline;
+    private ProbeConfigSnapshot? _probeRollbackSnapshot;
+
+    // sniffer 재시작 시에도 보존하는 객체
+    private ITimerTrigger?      _timerTrigger;
+    private PacketTypeLogger?   _typeLogger;
+    private DpsTracker?         _dpsTracker;
+    private BuffUptimeTracker?  _buffUptimeTracker;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -26,12 +40,7 @@ public partial class App : System.Windows.Application
         var config = AppConfig.Load();
         _config = config;
         var skillNames = SkillNameMap.Load();
-        var buffNames = BuffNameMap.Load();
-        _cts = new CancellationTokenSource();
-
-        OverlayTimerWindow? window = null;
-        ITimerTrigger timerTrigger = NoopTimerTrigger.Instance;
-        PacketTypeLogger? typeLogger = null;
+        var buffNames  = BuffNameMap.Load();
 
         _saveDebounce = new System.Windows.Threading.DispatcherTimer
         {
@@ -43,12 +52,14 @@ public partial class App : System.Windows.Application
             _config?.Save();
         };
 
+        _timerTrigger = NoopTimerTrigger.Instance;
+
         if (config.Overlays.Timer.Enabled)
         {
-            window = new OverlayTimerWindow
+            var window = new OverlayTimerWindow
             {
                 Left = config.Overlays.Timer.X,
-                Top = config.Overlays.Timer.Y
+                Top  = config.Overlays.Timer.Y
             };
             _timerWindow = window;
             AttachWindowCloseToAppShutdown(window);
@@ -60,20 +71,23 @@ public partial class App : System.Windows.Application
             };
             window.Show();
 
-            timerTrigger = new OverlayTriggerTimer(window, config.Timer);
-
-            typeLogger = new PacketTypeLogger();
-            OverlayTimerWindow.OnF9Press = typeLogger.TogglePhase;
+            _timerTrigger = new OverlayTriggerTimer(window, config.Timer);
+            _typeLogger   = new PacketTypeLogger();
+            OverlayTimerWindow.OnF9Press = _typeLogger.TogglePhase;
         }
 
-        var dpsTracker = new DpsTracker();
-        var buffUptimeTracker = new BuffUptimeTracker();
+        _dpsTracker        = new DpsTracker();
+        _buffUptimeTracker = new BuffUptimeTracker();
+
         if (config.Overlays.Dps.Enabled)
         {
-            _dpsWindow = new DpsOverlayWindow(dpsTracker, skillNames, buffUptimeTracker, buffNames)
+            _dpsWindow = new DpsOverlayWindow(
+                _dpsTracker, skillNames,
+                buffUptimeTracker: _buffUptimeTracker,
+                buffNames: buffNames)
             {
                 Left = config.Overlays.Dps.X,
-                Top = config.Overlays.Dps.Y
+                Top  = config.Overlays.Dps.Y
             };
             AttachWindowCloseToAppShutdown(_dpsWindow);
             _dpsWindow.LocationChanged += (_, _) =>
@@ -87,22 +101,45 @@ public partial class App : System.Windows.Application
 
         _trayIcon = CreateTrayIcon();
 
-        var selfIdResolver = new SelfIdResolver(config.PacketTypes.EnterWorld);
+        StartSniffer(config);
+    }
 
+    // ------------------------------------------------------------------
+    // Sniffer lifecycle (재시작 가능)
+    // ------------------------------------------------------------------
+
+    private void StartSniffer(AppConfig config)
+    {
+        try { _sniffer?.Dispose(); } catch { /* ignore */ }
+        try { _cts?.Cancel(); }      catch { /* ignore */ }
+        try { _cts?.Dispose(); }     catch { /* ignore */ }
+        _sniffer = null;
+        _cts = new CancellationTokenSource();
+
+        var selfIdResolver = new SelfIdResolver(config.PacketTypes.EnterWorld);
         var packetHandler = new PacketHandler(
-            timerTrigger,
+            _timerTrigger!,
             selfIdResolver,
             config.PacketTypes.BuffStart,
             config.PacketTypes.BuffEnd,
             config.BuffKeys,
-            typeLogger,
-            dpsTracker,
-            buffUptimeTracker,
+            _typeLogger,
+            _dpsTracker,
+            _buffUptimeTracker,
             config.PacketTypes.DpsAttack,
             config.PacketTypes.DpsDamage,
             config.Timer.ActiveDurationSeconds);
 
-        _sniffer = new SnifferService(config.Network.TargetPort, config.Network.DeviceName, packetHandler, config.Protocol);
+        _sniffer = new SnifferService(
+            config.Network.TargetPort,
+            config.Network.DeviceName,
+            packetHandler,
+            config.Protocol,
+            config.PacketTypes);
+
+        _sniffer.OnProbeSuccess = result =>
+            Dispatcher.Invoke(() => HandleProbeSuccess(result));
+
         try
         {
             _sniffer.Start(_cts.Token);
@@ -144,6 +181,133 @@ public partial class App : System.Windows.Application
         }
     }
 
+    // ------------------------------------------------------------------
+    // Probe success handler (UI 스레드에서 호출됨)
+    // ------------------------------------------------------------------
+
+    private void HandleProbeSuccess(ProbeResult r)
+    {
+        if (_isShuttingDown || _config == null) return;
+        if (_probePendingConfirmation)
+        {
+            LogHelper.Write("[Probe] Ignored a new probe result while confirmation is pending.");
+            return;
+        }
+
+        _probeRollbackSnapshot = CaptureProbeConfigSnapshot(_config);
+        ApplyProbeResult(r, _config);
+
+        // config.json 즉시 저장하지 않음 — N개 패킷 인식 후 확정 저장
+        _probePendingConfirmation = true;
+        _confirmDeadline = DateTime.UtcNow.AddSeconds(ConfirmTimeoutSeconds);
+
+        LogHelper.Write("[Probe] Config updated in memory. Waiting for confirmation before saving.");
+
+        StartSniffer(_config);
+
+        // 확인 타이머 시작
+        if (_confirmTimer == null)
+        {
+            _confirmTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(5)
+            };
+            _confirmTimer.Tick += OnConfirmTick;
+        }
+        _confirmTimer.Start();
+    }
+
+    private void OnConfirmTick(object? sender, EventArgs e)
+    {
+        if (_isShuttingDown || _config == null || !_probePendingConfirmation)
+        {
+            _confirmTimer?.Stop();
+            return;
+        }
+
+        if (DateTime.UtcNow > _confirmDeadline)
+        {
+            _confirmTimer!.Stop();
+            _probePendingConfirmation = false;
+
+            if (_probeRollbackSnapshot != null)
+            {
+                RestoreProbeConfigSnapshot(_config, _probeRollbackSnapshot);
+                _probeRollbackSnapshot = null;
+                LogHelper.Write("[Probe] Confirmation timed out. Restored previous config and restarting sniffer.");
+                StartSniffer(_config);
+            }
+            else
+            {
+                LogHelper.Write("[Probe] Confirmation timed out. Rollback snapshot missing; config not saved.");
+            }
+
+            return;
+        }
+
+        int recognized = _sniffer?.RecognizedPacketCount ?? 0;
+        if (recognized >= ConfirmThreshold)
+        {
+            _confirmTimer!.Stop();
+            _probePendingConfirmation = false;
+            _probeRollbackSnapshot = null;
+            _config.Save();
+            LogHelper.Write($"[Probe] Confirmed ({recognized} packets recognized). Config saved.");
+        }
+    }
+
+    private static void ApplyProbeResult(ProbeResult r, AppConfig config)
+    {
+        if (r.NewStartMarker != null)
+            config.Protocol.StartMarker = ToHexString(r.NewStartMarker);
+        if (r.NewEndMarker != null)
+            config.Protocol.EndMarker = ToHexString(r.NewEndMarker);
+        if (r.NewBuffStart.HasValue)  config.PacketTypes.BuffStart  = r.NewBuffStart.Value;
+        if (r.NewBuffEnd.HasValue)    config.PacketTypes.BuffEnd    = r.NewBuffEnd.Value;
+        if (r.NewEnterWorld.HasValue) config.PacketTypes.EnterWorld = r.NewEnterWorld.Value;
+        if (r.NewDpsAttack.HasValue)  config.PacketTypes.DpsAttack  = r.NewDpsAttack.Value;
+        if (r.NewDpsDamage.HasValue)  config.PacketTypes.DpsDamage  = r.NewDpsDamage.Value;
+    }
+
+    private static string ToHexString(byte[] bytes) =>
+        BitConverter.ToString(bytes).Replace("-", " ");
+
+    private static ProbeConfigSnapshot CaptureProbeConfigSnapshot(AppConfig config)
+    {
+        return new ProbeConfigSnapshot(
+            config.Protocol.StartMarker,
+            config.Protocol.EndMarker,
+            config.PacketTypes.BuffStart,
+            config.PacketTypes.BuffEnd,
+            config.PacketTypes.EnterWorld,
+            config.PacketTypes.DpsAttack,
+            config.PacketTypes.DpsDamage);
+    }
+
+    private static void RestoreProbeConfigSnapshot(AppConfig config, ProbeConfigSnapshot snapshot)
+    {
+        config.Protocol.StartMarker = snapshot.StartMarker;
+        config.Protocol.EndMarker = snapshot.EndMarker;
+        config.PacketTypes.BuffStart = snapshot.BuffStart;
+        config.PacketTypes.BuffEnd = snapshot.BuffEnd;
+        config.PacketTypes.EnterWorld = snapshot.EnterWorld;
+        config.PacketTypes.DpsAttack = snapshot.DpsAttack;
+        config.PacketTypes.DpsDamage = snapshot.DpsDamage;
+    }
+
+    private sealed record ProbeConfigSnapshot(
+        string StartMarker,
+        string EndMarker,
+        int BuffStart,
+        int BuffEnd,
+        int EnterWorld,
+        int DpsAttack,
+        int DpsDamage);
+
+    // ------------------------------------------------------------------
+    // App lifecycle
+    // ------------------------------------------------------------------
+
     protected override void OnExit(ExitEventArgs e)
     {
         CleanupForExit();
@@ -158,7 +322,8 @@ public partial class App : System.Windows.Application
 
     private void RestartSaveDebounce()
     {
-        if (_saveDebounce == null) return;
+        // 프로브 결과 확인 대기 중에는 창 이동으로 인한 저장 억제
+        if (_saveDebounce == null || _probePendingConfirmation) return;
         _saveDebounce.Stop();
         _saveDebounce.Start();
     }
@@ -170,9 +335,7 @@ public partial class App : System.Windows.Application
 
     private void BeginShutdown()
     {
-        if (_isShuttingDown)
-            return;
-
+        if (_isShuttingDown) return;
         _isShuttingDown = true;
         Shutdown();
     }
@@ -180,22 +343,27 @@ public partial class App : System.Windows.Application
     private void CleanupForExit()
     {
         _isShuttingDown = true;
+        _probePendingConfirmation = false;
+        _probeRollbackSnapshot = null;
+
+        if (_confirmTimer != null)
+        {
+            try { _confirmTimer.Stop(); }
+            catch { /* ignore */ }
+            try { _confirmTimer.Tick -= OnConfirmTick; }
+            catch { /* ignore */ }
+            _confirmTimer = null;
+        }
 
         if (_trayIcon != null)
         {
-            try
-            {
-                _trayIcon.Visible = false;
-            }
-            catch { /* ignore */ }
-
+            try { _trayIcon.Visible = false; }           catch { /* ignore */ }
             try
             {
                 _trayIcon.ContextMenuStrip?.Dispose();
                 _trayIcon.ContextMenuStrip = null;
             }
             catch { /* ignore */ }
-
             try
             {
                 var icon = _trayIcon.Icon;
@@ -203,36 +371,27 @@ public partial class App : System.Windows.Application
                 icon?.Dispose();
             }
             catch { /* ignore */ }
-
-            try
-            {
-                _trayIcon.Dispose();
-            }
-            catch { /* ignore */ }
-
+            try { _trayIcon.Dispose(); } catch { /* ignore */ }
             _trayIcon = null;
         }
 
-        try { _cts?.Cancel(); }
-        catch { /* ignore */ }
-
-        try { _sniffer?.Dispose(); }
-        catch { /* ignore */ }
-
+        try { _cts?.Cancel(); }      catch { /* ignore */ }
+        try { _sniffer?.Dispose(); } catch { /* ignore */ }
         _sniffer = null;
-
-        try { _cts?.Dispose(); }
-        catch { /* ignore */ }
-
+        try { _cts?.Dispose(); }     catch { /* ignore */ }
         _cts = null;
     }
+
+    // ------------------------------------------------------------------
+    // Tray icon
+    // ------------------------------------------------------------------
 
     private NotifyIcon CreateTrayIcon()
     {
         var menu = new ContextMenuStrip();
 
         ToolStripMenuItem? timerItem = null;
-        ToolStripMenuItem? dpsItem = null;
+        ToolStripMenuItem? dpsItem   = null;
 
         if (_timerWindow != null)
         {
@@ -260,7 +419,6 @@ public partial class App : System.Windows.Application
             menu.Items.Add(dpsItem);
         }
 
-        // 메뉴가 열릴 때마다 현재 창 상태를 반영해 텍스트 갱신
         menu.Opening += (_, _) => Dispatcher.Invoke(() =>
         {
             if (timerItem != null)
@@ -278,9 +436,9 @@ public partial class App : System.Windows.Application
 
         var icon = new NotifyIcon
         {
-            Icon = BuildIcon(),
-            Text = "OverlayTimer",
-            Visible = true,
+            Icon             = BuildIcon(),
+            Text             = "OverlayTimer",
+            Visible          = true,
             ContextMenuStrip = menu
         };
         return icon;

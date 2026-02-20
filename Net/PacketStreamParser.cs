@@ -12,6 +12,9 @@ public sealed class PacketStreamParser
 
     private readonly PacketHandler _packetHandler;
 
+    /// <summary>지금까지 완료된 프레임(EndMarker 도달) 수. 실패 감지에 사용.</summary>
+    public int FramesFound { get; private set; }
+
     public PacketStreamParser(PacketHandler packetHandler, byte[] startMarker, byte[] endMarker)
     {
         _packetHandler = packetHandler;
@@ -51,6 +54,7 @@ public sealed class PacketStreamParser
                 pivot += _endMarker.Length;
                 consumed = pivot;
                 _inFrame = false;
+                FramesFound++;
                 return consumed;
             }
 
