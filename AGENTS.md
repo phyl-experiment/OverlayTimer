@@ -16,6 +16,14 @@
 
 ---
 
+## 관련 문서
+
+- [DPS 기능 명세](DPS_SPEC.md)
+- [오버레이 공통 운영 메모](OVERLAY_OPERATION.md)
+- [Protocol Auto-Discovery Fallback 계획](memory/protocol-probe-plan.md)
+
+---
+
 ## 프로젝트 구조
 
 ```
