@@ -5,7 +5,7 @@ VisualStudioVersion = 17.9.34607.119
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OverlayTimer", "OverlayTimer.csproj", "{A29BDE65-937B-4758-B241-3A5F3499A1E6}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OverlayTimer.Tests", "..\OverlayTimer.Tests\OverlayTimer.Tests.csproj", "{6F9B7C96-DE25-41D6-9F4F-18597E8944F2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OverlayTimer.Tests", "tests\OverlayTimer.Tests\OverlayTimer.Tests.csproj", "{6F9B7C96-DE25-41D6-9F4F-18597E8944F2}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
