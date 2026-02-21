@@ -7,8 +7,12 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 using OverlayTimer.Net;
+using WpfButtonBase = System.Windows.Controls.Primitives.ButtonBase;
+using WpfScrollBar = System.Windows.Controls.Primitives.ScrollBar;
 using WpfCursors = System.Windows.Input.Cursors;
 
 namespace OverlayTimer
@@ -38,14 +42,11 @@ namespace OverlayTimer
         private bool _editMode;
         private bool _sizeInitialized;
         private double? _pendingWidth;
-        private double? _pendingHeight;
         private bool _isResizeDragging;
         private int _resizeHit;
         private System.Windows.Point _resizeStartScreen;
         private double _resizeStartLeft;
-        private double _resizeStartTop;
         private double _resizeStartWidth;
-        private double _resizeStartHeight;
         private readonly HashSet<ulong> _selectedTargetIds = new();
         private bool _suppressSelectionChanged;
 
@@ -74,12 +75,6 @@ namespace OverlayTimer
 
         private const int HTLEFT = 10;
         private const int HTRIGHT = 11;
-        private const int HTTOP = 12;
-        private const int HTTOPLEFT = 13;
-        private const int HTTOPRIGHT = 14;
-        private const int HTBOTTOM = 15;
-        private const int HTBOTTOMLEFT = 16;
-        private const int HTBOTTOMRIGHT = 17;
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_LAYERED = 0x80000;
         private const int WS_EX_TRANSPARENT = 0x20;
@@ -111,6 +106,7 @@ namespace OverlayTimer
             PreviewKeyDown += (_, _) => UpdateEditMode();
             PreviewKeyUp += (_, _) => UpdateEditMode();
             MouseLeftButtonDown += OnMouseLeftButtonDown;
+            AddHandler(PreviewMouseRightButtonDownEvent, new MouseButtonEventHandler(OnPreviewMouseRightButtonDown), true);
             MouseMove += OnMouseMove;
             MouseLeftButtonUp += OnMouseLeftButtonUp;
             LostMouseCapture += (_, _) => EndResizeDrag();
@@ -127,8 +123,7 @@ namespace OverlayTimer
         {
             if (width.HasValue && width.Value > 0)
                 _pendingWidth = width.Value;
-            if (height.HasValue && height.Value > 0)
-                _pendingHeight = height.Value;
+            _ = height;
 
             if (_sizeInitialized)
                 ApplyConfiguredSize();
@@ -140,24 +135,25 @@ namespace OverlayTimer
                 return;
 
             _sizeInitialized = true;
-            SizeToContent = SizeToContent.Manual;
+            // Keep vertical size content-driven while allowing horizontal manual resize.
+            SizeToContent = SizeToContent.Height;
             ApplyConfiguredSize();
         }
 
         private void ApplyConfiguredSize()
         {
             double width = _pendingWidth ?? ActualWidth;
-            double height = _pendingHeight ?? ActualHeight;
 
             if (width > 0)
                 Width = Math.Max(MinWidth, width);
-            if (height > 0)
-                Height = Math.Max(MinHeight, height);
         }
 
         private void OnMouseLeftButtonDown(object? sender, MouseButtonEventArgs e)
         {
             if (!_editMode)
+                return;
+
+            if (IsInteractiveElement(e.OriginalSource as DependencyObject))
                 return;
 
             InitializeSizingMode();
@@ -178,6 +174,18 @@ namespace OverlayTimer
                 BeginResizeDrag(hit, e);
             }
 
+            e.Handled = true;
+        }
+
+        private void OnPreviewMouseRightButtonDown(object? sender, MouseButtonEventArgs e)
+        {
+            if (!_editMode)
+                return;
+
+            if (!TryGetAncestor<WpfButtonBase>(e.OriginalSource as DependencyObject, out var button) || button == null)
+                return;
+
+            button.RaiseEvent(new RoutedEventArgs(WpfButtonBase.ClickEvent, button));
             e.Handled = true;
         }
 
@@ -207,9 +215,7 @@ namespace OverlayTimer
             _resizeHit = hit;
             _resizeStartScreen = PointToScreen(e.GetPosition(this));
             _resizeStartLeft = Left;
-            _resizeStartTop = Top;
             _resizeStartWidth = ActualWidth;
-            _resizeStartHeight = ActualHeight;
 
             Cursor = CursorForHit(hit);
             Mouse.Capture(this);
@@ -222,37 +228,22 @@ namespace OverlayTimer
 
             var current = PointToScreen(e.GetPosition(this));
             double dx = current.X - _resizeStartScreen.X;
-            double dy = current.Y - _resizeStartScreen.Y;
 
             double newLeft = _resizeStartLeft;
-            double newTop = _resizeStartTop;
             double newWidth = _resizeStartWidth;
-            double newHeight = _resizeStartHeight;
 
-            if (_resizeHit == HTLEFT || _resizeHit == HTTOPLEFT || _resizeHit == HTBOTTOMLEFT)
+            if (_resizeHit == HTLEFT)
             {
                 newWidth = Math.Max(MinWidth, _resizeStartWidth - dx);
                 newLeft = _resizeStartLeft + (_resizeStartWidth - newWidth);
             }
-            else if (_resizeHit == HTRIGHT || _resizeHit == HTTOPRIGHT || _resizeHit == HTBOTTOMRIGHT)
+            else if (_resizeHit == HTRIGHT)
             {
                 newWidth = Math.Max(MinWidth, _resizeStartWidth + dx);
             }
 
-            if (_resizeHit == HTTOP || _resizeHit == HTTOPLEFT || _resizeHit == HTTOPRIGHT)
-            {
-                newHeight = Math.Max(MinHeight, _resizeStartHeight - dy);
-                newTop = _resizeStartTop + (_resizeStartHeight - newHeight);
-            }
-            else if (_resizeHit == HTBOTTOM || _resizeHit == HTBOTTOMLEFT || _resizeHit == HTBOTTOMRIGHT)
-            {
-                newHeight = Math.Max(MinHeight, _resizeStartHeight + dy);
-            }
-
             Left = newLeft;
-            Top = newTop;
             Width = newWidth;
-            Height = newHeight;
         }
 
         private void EndResizeDrag()
@@ -273,19 +264,47 @@ namespace OverlayTimer
 
             bool left = p.X <= grip;
             bool right = p.X >= ActualWidth - grip;
-            bool top = p.Y <= grip;
-            bool bottom = p.Y >= ActualHeight - grip;
-
-            if (left && top) return HTTOPLEFT;
-            if (right && top) return HTTOPRIGHT;
-            if (left && bottom) return HTBOTTOMLEFT;
-            if (right && bottom) return HTBOTTOMRIGHT;
             if (left) return HTLEFT;
             if (right) return HTRIGHT;
-            if (top) return HTTOP;
-            if (bottom) return HTBOTTOM;
 
             return 0;
+        }
+
+        private static bool IsInteractiveElement(DependencyObject? source)
+        {
+            return TryGetAncestor<WpfButtonBase>(source, out _) ||
+                   TryGetAncestor<ListBoxItem>(source, out _) ||
+                   TryGetAncestor<WpfScrollBar>(source, out _);
+        }
+
+        private static bool TryGetAncestor<T>(DependencyObject? source, out T? found) where T : DependencyObject
+        {
+            DependencyObject? current = source;
+            while (current != null)
+            {
+                if (current is T match)
+                {
+                    found = match;
+                    return true;
+                }
+
+                current = GetParentObject(current);
+            }
+
+            found = null;
+            return false;
+        }
+
+        private static DependencyObject? GetParentObject(DependencyObject current)
+        {
+            DependencyObject? parent = current switch
+            {
+                Visual or Visual3D => VisualTreeHelper.GetParent(current),
+                FrameworkContentElement fce => fce.Parent,
+                _ => null
+            };
+
+            return parent ?? LogicalTreeHelper.GetParent(current);
         }
 
         private static System.Windows.Input.Cursor CursorForHit(int hit)
@@ -294,12 +313,6 @@ namespace OverlayTimer
             {
                 HTLEFT => WpfCursors.SizeWE,
                 HTRIGHT => WpfCursors.SizeWE,
-                HTTOP => WpfCursors.SizeNS,
-                HTBOTTOM => WpfCursors.SizeNS,
-                HTTOPLEFT => WpfCursors.SizeNWSE,
-                HTBOTTOMRIGHT => WpfCursors.SizeNWSE,
-                HTTOPRIGHT => WpfCursors.SizeNESW,
-                HTBOTTOMLEFT => WpfCursors.SizeNESW,
                 _ => WpfCursors.SizeAll
             };
         }
@@ -442,12 +455,24 @@ namespace OverlayTimer
 
         private static string FormatMan(double value)
         {
+            const double Eok = 100_000_000.0;
+            const double Jo = 1_000_000_000_000.0;
+
+            if (!double.IsFinite(value))
+                return "0.0\uB9CC";
+
+            double abs = Math.Abs(value);
+            if (abs >= Jo)
+                return $"{value / Jo:0.00}\uC870";
+            if (abs >= Eok)
+                return $"{value / Eok:0.00}\uC5B5";
+
             return $"{value / 10000.0:0.0}\uB9CC";
         }
 
         private static string FormatMan(long value)
         {
-            return $"{value / 10000.0:0.0}\uB9CC";
+            return FormatMan((double)value);
         }
 
         private void UpdateEditMode()

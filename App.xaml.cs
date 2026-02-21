@@ -124,11 +124,8 @@ public partial class App : System.Windows.Application
             {
                 if (_dpsWindow.WindowState != WindowState.Normal) return;
                 double width = _dpsWindow.ActualWidth;
-                double height = _dpsWindow.ActualHeight;
                 if (double.IsFinite(width) && width > 0)
                     config.Overlays.Dps.Width = width;
-                if (double.IsFinite(height) && height > 0)
-                    config.Overlays.Dps.Height = height;
                 RestartSaveDebounce();
             };
             _dpsWindow.Show();
