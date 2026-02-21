@@ -1,49 +1,46 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
 
 public static class LogHelper
 {
-    private static readonly object _lock = new object();
-    private static readonly string _logDir;
-    public static Boolean Disabled = false;
+    private static readonly object _lock = new();
+    private static readonly string _logDir = Path.Combine(AppContext.BaseDirectory, "logs");
+    private static string? _currentFile;
+    private static bool _initialized;
 
-    static LogHelper()
+    public static bool Disabled { get; private set; } = true;
+    public static bool PacketHeaderEnabled { get; private set; }
+
+    public static void Configure(bool enabled, bool packetHeaderEnabled)
     {
-        if (Disabled)
-        {
-            CurrentFile = "dummy";
-            _logDir = "dummy";
-            return;
-        }
+        Disabled = !enabled;
+        PacketHeaderEnabled = packetHeaderEnabled;
 
-        _logDir = Path.Combine(AppContext.BaseDirectory, "logs");
-        CurrentFile = Path.Combine(_logDir, $"sniffer_{DateTime.Now:yyyyMMddHHmmss}.log");
-        Directory.CreateDirectory(_logDir);
+        if (!Disabled)
+            EnsureInitialized();
     }
-
-    private static readonly string CurrentFile;
 
     public static void Write(string message)
     {
         if (Disabled)
-        {
             return;
-        }
 
         try
         {
+            EnsureInitialized();
             var line = $"[{DateTime.Now:HH:mm:ss.fff}] {message}";
             Console.WriteLine(line);
 
             lock (_lock)
             {
-
-                File.AppendAllText(
-                    CurrentFile,
-                    line + Environment.NewLine,
-                    Encoding.UTF8
-                );
+                if (_currentFile != null)
+                {
+                    File.AppendAllText(
+                        _currentFile,
+                        line + Environment.NewLine,
+                        Encoding.UTF8);
+                }
             }
         }
         catch
@@ -52,4 +49,19 @@ public static class LogHelper
         }
     }
 
+    private static void EnsureInitialized()
+    {
+        if (_initialized)
+            return;
+
+        lock (_lock)
+        {
+            if (_initialized)
+                return;
+
+            Directory.CreateDirectory(_logDir);
+            _currentFile = Path.Combine(_logDir, $"sniffer_{DateTime.Now:yyyyMMddHHmmss}.log");
+            _initialized = true;
+        }
+    }
 }

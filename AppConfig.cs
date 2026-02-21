@@ -28,6 +28,9 @@ namespace OverlayTimer
         [JsonPropertyName("sound")]
         public SoundConfig Sound { get; set; } = new();
 
+        [JsonPropertyName("logging")]
+        public LoggingConfig Logging { get; set; } = new();
+
         private static readonly JsonSerializerOptions _writeOptions = new() { WriteIndented = true };
 
         public static AppConfig Load()
@@ -53,15 +56,21 @@ namespace OverlayTimer
         [JsonPropertyName("targetPort")]
         public int TargetPort { get; set; } = 16000;
 
-        // null이면 자동 선택 (Ethernet 우선). 어댑터가 여러 개일 때 Description 부분 문자열로 지정.
-        // 예: "Intel(R) Ethernet", "Realtek"
+        [JsonPropertyName("captureFilter")]
+        public string? CaptureFilter { get; set; } = null;
+
+        [JsonPropertyName("autoReselect")]
+        public bool AutoReselect { get; set; } = true;
+
+        // null?????癒?짗 ?醫뤾문 (Ethernet ?怨쀪퐨). ????怨? ????揶쏆뮇????Description ?봔???얜챷???以?筌왖??
+        // ?? "Intel(R) Ethernet", "Realtek"
         [JsonPropertyName("deviceName")]
         public string? DeviceName { get; set; } = null;
     }
 
     public sealed class ProtocolConfig
     {
-        // 공백/하이픈 구분자 허용. 예: "80 4E 00 00 00 00 00 00 00"
+        // ?⑤벉媛???륁뵠???닌됲뀋????됱뒠. ?? "80 4E 00 00 00 00 00 00 00"
         [JsonPropertyName("startMarker")]
         public string StartMarker { get; set; } = "80 4E 00 00 00 00 00 00 00";
 
@@ -121,6 +130,18 @@ namespace OverlayTimer
 
         [JsonPropertyName("triggerFile")]
         public string TriggerFile { get; set; } = "assets/sounds/timer-trigger.wav";
+    }
+
+    public sealed class LoggingConfig
+    {
+        [JsonPropertyName("enabled")]
+        public bool Enabled { get; set; } = false;
+
+        [JsonPropertyName("packetHeaders")]
+        public bool PacketHeaders { get; set; } = false;
+
+        [JsonPropertyName("captureStatsIntervalSeconds")]
+        public int CaptureStatsIntervalSeconds { get; set; } = 10;
     }
 
     public sealed class OverlaysConfig

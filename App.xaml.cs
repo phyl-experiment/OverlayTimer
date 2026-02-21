@@ -39,6 +39,13 @@ public partial class App : System.Windows.Application
 
         var config = AppConfig.Load();
         _config = config;
+        LogHelper.Configure(config.Logging.Enabled, config.Logging.PacketHeaders);
+        LogHelper.Write(
+            $"[App] Startup: targetPort={config.Network.TargetPort} " +
+            $"captureFilter=\"{config.Network.CaptureFilter ?? "(default)"}\" " +
+            $"deviceName=\"{config.Network.DeviceName ?? "(auto)"}\" " +
+            $"autoReselect={config.Network.AutoReselect} " +
+            $"logging={config.Logging.Enabled} packetHeaders={config.Logging.PacketHeaders}");
         var skillNames = SkillNameMap.Load();
         var buffNames  = BuffNameMap.Load();
 
@@ -132,10 +139,13 @@ public partial class App : System.Windows.Application
 
         _sniffer = new SnifferService(
             config.Network.TargetPort,
+            config.Network.CaptureFilter,
             config.Network.DeviceName,
+            config.Network.AutoReselect,
             packetHandler,
             config.Protocol,
-            config.PacketTypes);
+            config.PacketTypes,
+            config.Logging);
 
         _sniffer.OnProbeSuccess = result =>
             Dispatcher.Invoke(() => HandleProbeSuccess(result));

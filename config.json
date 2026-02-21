@@ -1,6 +1,8 @@
 {
   "network": {
     "targetPort": 16000,
+    "captureFilter": null,
+    "autoReselect": true,
     "deviceName": null
   },
   "protocol": {
@@ -27,6 +29,11 @@
   "sound": {
     "enabled": true,
     "triggerFile": "assets/sounds/timer-trigger.wav"
+  },
+  "logging": {
+    "enabled": false,
+    "packetHeaders": false,
+    "captureStatsIntervalSeconds": 10
   },
   "overlays": {
     "timer": {

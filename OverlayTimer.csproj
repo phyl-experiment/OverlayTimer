@@ -2,10 +2,15 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <Version>0.5.0</Version>
+    <AssemblyVersion>0.5.0.0</AssemblyVersion>
+    <FileVersion>0.5.0.0</FileVersion>
+    <InformationalVersion>0.5.0</InformationalVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**\*;tests\**\*</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="PacketDotNet" Version="1.4.8" />
@@ -27,5 +32,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Remove="tests\**\*.cs" />
+    <Compile Remove="artifacts\**\*.cs" />
+    <Page Remove="artifacts\**\*.xaml" />
+    <None Remove="artifacts\**\*" />
+    <EmbeddedResource Remove="artifacts\**\*" />
+    <ApplicationDefinition Remove="artifacts\**\*.xaml" />
   </ItemGroup>
 </Project>

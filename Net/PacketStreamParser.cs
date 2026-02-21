@@ -69,7 +69,10 @@ public sealed class PacketStreamParser
             int length = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(pivot + 4, 4));
             int encodeType = data[pivot + 8];
 
-            LogHelper.Write($"[{DateTime.Now:HH:mm:ss.fff}] [{dataType}] len={length} encodeType={encodeType}");
+            if (LogHelper.PacketHeaderEnabled)
+            {
+                LogHelper.Write($"[PacketHeader] type={dataType} len={length} encodeType={encodeType}");
+            }
 
             // ★ 정체 방지: dataType==0이면 최소한 헤더만큼은 소비해서 같은 위치 재시도 무한정체를 막는다.
             if (dataType == 0)
