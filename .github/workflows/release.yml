@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to publish (e.g. v0.4.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -11,9 +17,13 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref_name }}
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -36,10 +46,12 @@ jobs:
         run: |
           Compress-Archive `
             -Path publish/* `
-            -DestinationPath OverlayTimer-${{ github.ref_name }}.zip
+            -DestinationPath OverlayTimer-${{ env.RELEASE_TAG }}.zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: OverlayTimer-${{ github.ref_name }}.zip
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: OverlayTimer-${{ env.RELEASE_TAG }}.zip
+          overwrite_files: true
           generate_release_notes: true
