@@ -9,6 +9,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using OverlayTimer.Net;
+using WpfCursors = System.Windows.Input.Cursors;
 
 namespace OverlayTimer
 {
@@ -35,16 +36,20 @@ namespace OverlayTimer
         private bool _showSkills;
         private bool _showBuffs;
         private bool _editMode;
+        private bool _sizeInitialized;
+        private double? _pendingWidth;
+        private double? _pendingHeight;
+        private bool _isResizeDragging;
+        private int _resizeHit;
+        private System.Windows.Point _resizeStartScreen;
+        private double _resizeStartLeft;
+        private double _resizeStartTop;
+        private double _resizeStartWidth;
+        private double _resizeStartHeight;
         private readonly HashSet<ulong> _selectedTargetIds = new();
         private bool _suppressSelectionChanged;
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
-
-        [DllImport("user32.dll")]
-        private static extern bool ReleaseCapture();
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
 
         [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -67,8 +72,14 @@ namespace OverlayTimer
         [DllImport("user32.dll")]
         private static extern short GetAsyncKeyState(int vKey);
 
-        private const int WM_NCLBUTTONDOWN = 0xA1;
-        private const int HTCAPTION = 0x2;
+        private const int HTLEFT = 10;
+        private const int HTRIGHT = 11;
+        private const int HTTOP = 12;
+        private const int HTTOPLEFT = 13;
+        private const int HTTOPRIGHT = 14;
+        private const int HTBOTTOM = 15;
+        private const int HTBOTTOMLEFT = 16;
+        private const int HTBOTTOMRIGHT = 17;
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_LAYERED = 0x80000;
         private const int WS_EX_TRANSPARENT = 0x20;
@@ -94,11 +105,15 @@ namespace OverlayTimer
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
+            InitializeSizingMode();
             MakeClickThrough();
 
             PreviewKeyDown += (_, _) => UpdateEditMode();
             PreviewKeyUp += (_, _) => UpdateEditMode();
             MouseLeftButtonDown += OnMouseLeftButtonDown;
+            MouseMove += OnMouseMove;
+            MouseLeftButtonUp += OnMouseLeftButtonUp;
+            LostMouseCapture += (_, _) => EndResizeDrag();
 
             var inputTick = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
             inputTick.Tick += (_, _) => UpdateEditMode();
@@ -108,15 +123,185 @@ namespace OverlayTimer
             RefreshUi();
         }
 
+        public void SetInitialSize(double? width, double? height)
+        {
+            if (width.HasValue && width.Value > 0)
+                _pendingWidth = width.Value;
+            if (height.HasValue && height.Value > 0)
+                _pendingHeight = height.Value;
+
+            if (_sizeInitialized)
+                ApplyConfiguredSize();
+        }
+
+        private void InitializeSizingMode()
+        {
+            if (_sizeInitialized)
+                return;
+
+            _sizeInitialized = true;
+            SizeToContent = SizeToContent.Manual;
+            ApplyConfiguredSize();
+        }
+
+        private void ApplyConfiguredSize()
+        {
+            double width = _pendingWidth ?? ActualWidth;
+            double height = _pendingHeight ?? ActualHeight;
+
+            if (width > 0)
+                Width = Math.Max(MinWidth, width);
+            if (height > 0)
+                Height = Math.Max(MinHeight, height);
+        }
+
         private void OnMouseLeftButtonDown(object? sender, MouseButtonEventArgs e)
         {
             if (!_editMode)
                 return;
 
-            var hwnd = new WindowInteropHelper(this).Handle;
-            ReleaseCapture();
-            SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
+            InitializeSizingMode();
+            int hit = GetSizingHit(e.GetPosition(this));
+            if (hit == 0)
+            {
+                try
+                {
+                    DragMove();
+                }
+                catch
+                {
+                    // Ignore drag exceptions in overlay mode.
+                }
+            }
+            else
+            {
+                BeginResizeDrag(hit, e);
+            }
+
             e.Handled = true;
+        }
+
+        private void OnMouseMove(object? sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (_isResizeDragging)
+            {
+                UpdateResizeDrag(e);
+                return;
+            }
+
+            if (!_editMode)
+                return;
+
+            int hit = GetSizingHit(e.GetPosition(this));
+            Cursor = CursorForHit(hit);
+        }
+
+        private void OnMouseLeftButtonUp(object? sender, MouseButtonEventArgs e)
+        {
+            EndResizeDrag();
+        }
+
+        private void BeginResizeDrag(int hit, MouseButtonEventArgs e)
+        {
+            _isResizeDragging = true;
+            _resizeHit = hit;
+            _resizeStartScreen = PointToScreen(e.GetPosition(this));
+            _resizeStartLeft = Left;
+            _resizeStartTop = Top;
+            _resizeStartWidth = ActualWidth;
+            _resizeStartHeight = ActualHeight;
+
+            Cursor = CursorForHit(hit);
+            Mouse.Capture(this);
+        }
+
+        private void UpdateResizeDrag(System.Windows.Input.MouseEventArgs e)
+        {
+            if (!_isResizeDragging)
+                return;
+
+            var current = PointToScreen(e.GetPosition(this));
+            double dx = current.X - _resizeStartScreen.X;
+            double dy = current.Y - _resizeStartScreen.Y;
+
+            double newLeft = _resizeStartLeft;
+            double newTop = _resizeStartTop;
+            double newWidth = _resizeStartWidth;
+            double newHeight = _resizeStartHeight;
+
+            if (_resizeHit == HTLEFT || _resizeHit == HTTOPLEFT || _resizeHit == HTBOTTOMLEFT)
+            {
+                newWidth = Math.Max(MinWidth, _resizeStartWidth - dx);
+                newLeft = _resizeStartLeft + (_resizeStartWidth - newWidth);
+            }
+            else if (_resizeHit == HTRIGHT || _resizeHit == HTTOPRIGHT || _resizeHit == HTBOTTOMRIGHT)
+            {
+                newWidth = Math.Max(MinWidth, _resizeStartWidth + dx);
+            }
+
+            if (_resizeHit == HTTOP || _resizeHit == HTTOPLEFT || _resizeHit == HTTOPRIGHT)
+            {
+                newHeight = Math.Max(MinHeight, _resizeStartHeight - dy);
+                newTop = _resizeStartTop + (_resizeStartHeight - newHeight);
+            }
+            else if (_resizeHit == HTBOTTOM || _resizeHit == HTBOTTOMLEFT || _resizeHit == HTBOTTOMRIGHT)
+            {
+                newHeight = Math.Max(MinHeight, _resizeStartHeight + dy);
+            }
+
+            Left = newLeft;
+            Top = newTop;
+            Width = newWidth;
+            Height = newHeight;
+        }
+
+        private void EndResizeDrag()
+        {
+            if (!_isResizeDragging)
+                return;
+
+            _isResizeDragging = false;
+            _resizeHit = 0;
+            if (Mouse.Captured == this)
+                Mouse.Capture(null);
+            Cursor = _editMode ? WpfCursors.SizeAll : WpfCursors.Arrow;
+        }
+
+        private int GetSizingHit(System.Windows.Point p)
+        {
+            const double grip = 18.0;
+
+            bool left = p.X <= grip;
+            bool right = p.X >= ActualWidth - grip;
+            bool top = p.Y <= grip;
+            bool bottom = p.Y >= ActualHeight - grip;
+
+            if (left && top) return HTTOPLEFT;
+            if (right && top) return HTTOPRIGHT;
+            if (left && bottom) return HTBOTTOMLEFT;
+            if (right && bottom) return HTBOTTOMRIGHT;
+            if (left) return HTLEFT;
+            if (right) return HTRIGHT;
+            if (top) return HTTOP;
+            if (bottom) return HTBOTTOM;
+
+            return 0;
+        }
+
+        private static System.Windows.Input.Cursor CursorForHit(int hit)
+        {
+            return hit switch
+            {
+                HTLEFT => WpfCursors.SizeWE,
+                HTRIGHT => WpfCursors.SizeWE,
+                HTTOP => WpfCursors.SizeNS,
+                HTBOTTOM => WpfCursors.SizeNS,
+                HTTOPLEFT => WpfCursors.SizeNWSE,
+                HTBOTTOMRIGHT => WpfCursors.SizeNWSE,
+                HTTOPRIGHT => WpfCursors.SizeNESW,
+                HTBOTTOMLEFT => WpfCursors.SizeNESW,
+                _ => WpfCursors.SizeAll
+            };
         }
 
         private void ResetButton_Click(object sender, RoutedEventArgs e)
@@ -272,6 +457,8 @@ namespace OverlayTimer
                 return;
 
             _editMode = wantEdit;
+            if (!_editMode)
+                EndResizeDrag();
             Root.IsHitTestVisible = _editMode;
 
             var hwnd = new WindowInteropHelper(this).Handle;
@@ -281,6 +468,8 @@ namespace OverlayTimer
                 SetWindowLong(hwnd, GWL_EXSTYLE, (ex | WS_EX_LAYERED) & ~WS_EX_TRANSPARENT);
             else
                 SetWindowLong(hwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED | WS_EX_TRANSPARENT);
+
+            Cursor = _editMode ? WpfCursors.SizeAll : WpfCursors.Arrow;
         }
 
         private void MakeClickThrough()

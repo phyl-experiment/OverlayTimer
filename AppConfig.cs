@@ -56,9 +56,38 @@ namespace OverlayTimer
 
         public void Save()
         {
+            NormalizeForSave();
             var path = Path.Combine(AppContext.BaseDirectory, "config.json");
             var json = JsonSerializer.Serialize(this, _writeOptions);
             File.WriteAllText(path, json);
+        }
+
+        private void NormalizeForSave()
+        {
+            NormalizeOverlay(Overlays.Timer);
+            NormalizeOverlay(Overlays.Dps);
+        }
+
+        private static void NormalizeOverlay(OverlayConfig overlay)
+        {
+            overlay.X = SanitizePosition(overlay.X);
+            overlay.Y = SanitizePosition(overlay.Y);
+            overlay.Width = SanitizeSize(overlay.Width);
+            overlay.Height = SanitizeSize(overlay.Height);
+        }
+
+        private static double SanitizePosition(double value)
+        {
+            return double.IsFinite(value) ? value : 0;
+        }
+
+        private static double? SanitizeSize(double? value)
+        {
+            if (!value.HasValue)
+                return null;
+
+            double v = value.Value;
+            return double.IsFinite(v) && v > 0 ? v : null;
         }
     }
 
@@ -184,6 +213,12 @@ namespace OverlayTimer
 
         [JsonPropertyName("y")]
         public double Y { get; set; } = 0;
+
+        [JsonPropertyName("width")]
+        public double? Width { get; set; }
+
+        [JsonPropertyName("height")]
+        public double? Height { get; set; }
     }
 
     public static class BuffNameMap

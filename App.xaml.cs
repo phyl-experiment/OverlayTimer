@@ -56,7 +56,7 @@ public partial class App : System.Windows.Application
         _saveDebounce.Tick += (_, _) =>
         {
             _saveDebounce.Stop();
-            _config?.Save();
+            TrySaveConfig("debounce");
         };
 
         _timerTrigger = NoopTimerTrigger.Instance;
@@ -68,12 +68,26 @@ public partial class App : System.Windows.Application
                 Left = config.Overlays.Timer.X,
                 Top  = config.Overlays.Timer.Y
             };
+            window.SetInitialSize(config.Overlays.Timer.Width, config.Overlays.Timer.Height);
             _timerWindow = window;
             AttachWindowCloseToAppShutdown(window);
             window.LocationChanged += (_, _) =>
             {
-                config.Overlays.Timer.X = window.Left;
-                config.Overlays.Timer.Y = window.Top;
+                if (double.IsFinite(window.Left))
+                    config.Overlays.Timer.X = window.Left;
+                if (double.IsFinite(window.Top))
+                    config.Overlays.Timer.Y = window.Top;
+                RestartSaveDebounce();
+            };
+            window.SizeChanged += (_, _) =>
+            {
+                if (window.WindowState != WindowState.Normal) return;
+                double width = window.ActualWidth;
+                double height = window.ActualHeight;
+                if (double.IsFinite(width) && width > 0)
+                    config.Overlays.Timer.Width = width;
+                if (double.IsFinite(height) && height > 0)
+                    config.Overlays.Timer.Height = height;
                 RestartSaveDebounce();
             };
             window.Show();
@@ -96,11 +110,25 @@ public partial class App : System.Windows.Application
                 Left = config.Overlays.Dps.X,
                 Top  = config.Overlays.Dps.Y
             };
+            _dpsWindow.SetInitialSize(config.Overlays.Dps.Width, config.Overlays.Dps.Height);
             AttachWindowCloseToAppShutdown(_dpsWindow);
             _dpsWindow.LocationChanged += (_, _) =>
             {
-                config.Overlays.Dps.X = _dpsWindow.Left;
-                config.Overlays.Dps.Y = _dpsWindow.Top;
+                if (double.IsFinite(_dpsWindow.Left))
+                    config.Overlays.Dps.X = _dpsWindow.Left;
+                if (double.IsFinite(_dpsWindow.Top))
+                    config.Overlays.Dps.Y = _dpsWindow.Top;
+                RestartSaveDebounce();
+            };
+            _dpsWindow.SizeChanged += (_, _) =>
+            {
+                if (_dpsWindow.WindowState != WindowState.Normal) return;
+                double width = _dpsWindow.ActualWidth;
+                double height = _dpsWindow.ActualHeight;
+                if (double.IsFinite(width) && width > 0)
+                    config.Overlays.Dps.Width = width;
+                if (double.IsFinite(height) && height > 0)
+                    config.Overlays.Dps.Height = height;
                 RestartSaveDebounce();
             };
             _dpsWindow.Show();
@@ -261,7 +289,7 @@ public partial class App : System.Windows.Application
             _confirmTimer!.Stop();
             _probePendingConfirmation = false;
             _probeRollbackSnapshot = null;
-            _config.Save();
+            TrySaveConfig("probe-confirm");
             LogHelper.Write($"[Probe] Confirmed ({recognized} packets recognized). Config saved.");
         }
     }
@@ -336,6 +364,21 @@ public partial class App : System.Windows.Application
         if (_saveDebounce == null || _probePendingConfirmation) return;
         _saveDebounce.Stop();
         _saveDebounce.Start();
+    }
+
+    private void TrySaveConfig(string reason)
+    {
+        if (_config == null)
+            return;
+
+        try
+        {
+            _config.Save();
+        }
+        catch (Exception ex)
+        {
+            LogHelper.Write($"[Config] Save failed ({reason}): {ex.Message}");
+        }
     }
 
     private void AttachWindowCloseToAppShutdown(Window window)
