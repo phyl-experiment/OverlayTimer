@@ -112,7 +112,8 @@ namespace OverlayTimer.Net
             }
 
             ulong selfId = _selfIdResolver.SelfId;
-            if (selfId != 0 && parsed.UserId != selfId)
+            bool isSelfBuff = selfId != 0 && parsed.UserId == selfId;
+            if (selfId != 0 && !isSelfBuff)
                 return true;
 
             var activeDuration = ResolveActiveDuration(parsed);
@@ -124,7 +125,10 @@ namespace OverlayTimer.Net
                 return true;
 
             TrackBuffStart(parsed, activeDuration);
-            _timerTrigger.On(new TimerTriggerRequest(parsed.BuffKey, activeDuration));
+            _timerTrigger.On(new TimerTriggerRequest(
+                parsed.BuffKey,
+                activeDuration,
+                AllowSound: isSelfBuff));
 
             LogHelper.Write(
                 $"[BuffStart] user={parsed.UserId} key={parsed.BuffKey} inst={parsed.InstKey} duration={activeDuration.TotalSeconds:0.#}s");

@@ -24,6 +24,10 @@
     "cooldownShortSeconds": 32,
     "cooldownLongSeconds": 70
   },
+  "sound": {
+    "enabled": true,
+    "triggerFile": "assets/sounds/timer-trigger.wav"
+  },
   "overlays": {
     "timer": {
       "enabled": true,

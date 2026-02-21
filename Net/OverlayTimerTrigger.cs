@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.IO;
 using System.Media;
 using System.Windows.Threading;
 
@@ -25,8 +26,9 @@ namespace OverlayTimer.Net
         private TimeSpan _currentActiveDuration;
         private TimeSpan _currentCooldownDuration;
         private bool _runtimeCooldownForCurrentCycle;
+        private readonly SoundPlayer? _triggerSoundPlayer;
 
-        public OverlayTriggerTimer(OverlayTimerWindow window, TimerConfig timer)
+        public OverlayTriggerTimer(OverlayTimerWindow window, TimerConfig timer, SoundConfig sound)
         {
             _window = window;
             _ui = window.Dispatcher;
@@ -39,6 +41,7 @@ namespace OverlayTimer.Net
 
             _currentActiveDuration = _defaultActiveDuration;
             _currentCooldownDuration = _manualCooldownDuration;
+            _triggerSoundPlayer = CreateSoundPlayer(sound);
 
             _tick = new DispatcherTimer(DispatcherPriority.Render, _ui)
             {
@@ -58,33 +61,41 @@ namespace OverlayTimer.Net
             e.Handled = true;
         }
 
-        public void On(TimerTriggerRequest request)
+        public bool On(TimerTriggerRequest request)
         {
-            _ui.BeginInvoke(() =>
+            if (_ui.CheckAccess())
+                return TryStartFromRequest(request);
+
+            return _ui.Invoke(() => TryStartFromRequest(request));
+        }
+
+        private bool TryStartFromRequest(TimerTriggerRequest request)
+        {
+            if (_phase == Phase.Active)
+                return false;
+
+            var activeDuration = NormalizeDuration(request.ActiveDuration, _defaultActiveDuration);
+            TimeSpan cooldownDuration;
+
+            if (request.CooldownDuration.HasValue)
             {
-                if (_phase == Phase.Active)
-                    return;
+                cooldownDuration = NormalizeDuration(request.CooldownDuration.Value, _manualCooldownDuration);
+                _runtimeCooldownForCurrentCycle = true;
+            }
+            else
+            {
+                cooldownDuration = _manualCooldownDuration;
+                _runtimeCooldownForCurrentCycle = false;
+            }
 
-                var activeDuration = NormalizeDuration(request.ActiveDuration, _defaultActiveDuration);
-                TimeSpan cooldownDuration;
+            _currentActiveDuration = activeDuration;
+            _currentCooldownDuration = cooldownDuration;
 
-                if (request.CooldownDuration.HasValue)
-                {
-                    cooldownDuration = NormalizeDuration(request.CooldownDuration.Value, _manualCooldownDuration);
-                    _runtimeCooldownForCurrentCycle = true;
-                }
-                else
-                {
-                    cooldownDuration = _manualCooldownDuration;
-                    _runtimeCooldownForCurrentCycle = false;
-                }
+            StartPhase(Phase.Active, _currentActiveDuration, GetActiveModeText());
+            if (request.AllowSound)
+                PlayTriggerSound();
 
-                _currentActiveDuration = activeDuration;
-                _currentCooldownDuration = cooldownDuration;
-
-                SystemSounds.Asterisk.Play();
-                StartPhase(Phase.Active, _currentActiveDuration, GetActiveModeText());
-            });
+            return true;
         }
 
         private void StartPhase(Phase phase, TimeSpan duration, string modeText)
@@ -206,6 +217,50 @@ namespace OverlayTimer.Net
         private static string GetCooldownModeText(TimeSpan cooldownDuration)
         {
             return $"Cooldown ({(int)cooldownDuration.TotalSeconds}s)";
+        }
+
+        private static SoundPlayer? CreateSoundPlayer(SoundConfig sound)
+        {
+            if (!sound.Enabled)
+                return null;
+
+            string relativePath = string.IsNullOrWhiteSpace(sound.TriggerFile)
+                ? "assets/sounds/timer-trigger.wav"
+                : sound.TriggerFile;
+
+            string fullPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, relativePath));
+            if (!File.Exists(fullPath))
+            {
+                LogHelper.Write($"[Sound] Trigger file not found: {fullPath}");
+                return null;
+            }
+
+            try
+            {
+                var player = new SoundPlayer(fullPath);
+                player.Load();
+                return player;
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write($"[Sound] Trigger file load failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        private void PlayTriggerSound()
+        {
+            if (_triggerSoundPlayer == null)
+                return;
+
+            try
+            {
+                _triggerSoundPlayer.Play();
+            }
+            catch (Exception ex)
+            {
+                LogHelper.Write($"[Sound] Trigger playback failed: {ex.Message}");
+            }
         }
     }
 }

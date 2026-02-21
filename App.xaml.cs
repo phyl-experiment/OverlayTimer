@@ -71,7 +71,7 @@ public partial class App : System.Windows.Application
             };
             window.Show();
 
-            _timerTrigger = new OverlayTriggerTimer(window, config.Timer);
+            _timerTrigger = new OverlayTriggerTimer(window, config.Timer, config.Sound);
             _typeLogger   = new PacketTypeLogger();
             OverlayTimerWindow.OnF9Press = _typeLogger.TogglePhase;
         }

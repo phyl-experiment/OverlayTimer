@@ -25,6 +25,9 @@ namespace OverlayTimer
         [JsonPropertyName("overlays")]
         public OverlaysConfig Overlays { get; set; } = new();
 
+        [JsonPropertyName("sound")]
+        public SoundConfig Sound { get; set; } = new();
+
         private static readonly JsonSerializerOptions _writeOptions = new() { WriteIndented = true };
 
         public static AppConfig Load()
@@ -109,6 +112,15 @@ namespace OverlayTimer
 
         [JsonPropertyName("cooldownLongSeconds")]
         public int CooldownLongSeconds { get; set; } = 70;
+    }
+
+    public sealed class SoundConfig
+    {
+        [JsonPropertyName("enabled")]
+        public bool Enabled { get; set; } = true;
+
+        [JsonPropertyName("triggerFile")]
+        public string TriggerFile { get; set; } = "assets/sounds/timer-trigger.wav";
     }
 
     public sealed class OverlaysConfig
