@@ -22,6 +22,16 @@ namespace OverlayTimer.Net
         private static readonly TimeSpan BuffTrackKeep = TimeSpan.FromMinutes(3);
         private ulong _lastSelfId;
 
+        // Damage-based self-ID fallback
+        // Case 1: selfId == 0 → 유효 데미지 1회로 즉시 확정
+        // Case 2: selfId != 0이지만 다른 userId가 연속 N회 → 덮어쓰기
+        private ulong _consecutiveCandidateId;
+        private int _consecutiveCandidateCount;
+        private const int ConsecutiveOverrideThreshold = 3;
+
+        // selfId 미확정 상태에서 수신한 각성 버프 패킷 임시 보관 (instKey → 정보)
+        private readonly Dictionary<ulong, PendingAwakenBuff> _pendingAwakenBuffsByInstKey = new();
+
         /// <summary>알려진 패킷 타입과 일치한 누적 카운트. 새 프로토콜 확인에 사용.</summary>
         public int RecognizedPacketCount { get; private set; }
 
@@ -93,9 +103,16 @@ namespace OverlayTimer.Net
                 _buffUptimeTracker?.Reset();
                 _pendingDamages.Clear();
                 _trackedBuffStartsByInstKey.Clear();
+                _pendingAwakenBuffsByInstKey.Clear();
+                _consecutiveCandidateId = 0;
+                _consecutiveCandidateCount = 0;
             }
 
             _lastSelfId = parsedId;
+            // EnterWorld로 selfId가 새로 확정됐을 때도 임시 각성 버프 처리
+            ActivatePendingAwakenBuffs(parsedId);
+            _consecutiveCandidateId = 0;
+            _consecutiveCandidateCount = 0;
             LogHelper.Write($"{dataType}:{parsedId}");
         }
 
@@ -114,8 +131,18 @@ namespace OverlayTimer.Net
             ulong selfId = _selfIdResolver.SelfId;
             // Buff is strict: until selfId is resolved, do not update buff state/timer.
             // Otherwise another user's buff can overwrite local timer state.
+            // 단, 각성 버프는 selfId 확정 후 타이머를 소급 적용할 수 있도록 임시 보관.
             if (selfId == 0)
+            {
+                if (_awakeningBuffKeySet.Contains(parsed.BuffKey))
+                {
+                    CleanupPendingAwakenBuffs();
+                    var dur = ResolveActiveDuration(parsed);
+                    _pendingAwakenBuffsByInstKey[parsed.InstKey] = new PendingAwakenBuff(
+                        parsed.UserId, parsed.BuffKey, dur, DateTime.UtcNow);
+                }
                 return true;
+            }
 
             if (parsed.UserId != selfId)
                 return true;
@@ -255,8 +282,23 @@ namespace OverlayTimer.Net
                 if (!PacketDamage20897.TryParse(content, out var damagePacket))
                     return false;
 
-                if (hasSelfId && damagePacket.UserId != selfId)
+                if (!hasSelfId)
+                {
+                    // Case 1: selfId 미확정 → 유효 데미지 1회로 즉시 확정
+                    ResolveSelfIdFromDamage(damagePacket.UserId);
+                }
+                else if (damagePacket.UserId != selfId)
+                {
+                    // Case 2: selfId 확정 상태에서 다른 userId → 연속 카운트, 임계치 초과 시 덮어쓰기
+                    TrackConsecutiveCandidateDamage(damagePacket.UserId);
                     return true;
+                }
+                else
+                {
+                    // selfId와 일치 → 연속 후보 카운터 초기화
+                    _consecutiveCandidateId = 0;
+                    _consecutiveCandidateCount = 0;
+                }
 
                 _pendingDamages.Add(new PendingDamage(damagePacket, DateTime.UtcNow));
                 if (_pendingDamages.Count > 256)
@@ -338,6 +380,117 @@ namespace OverlayTimer.Net
         private static bool IsFlagSet(byte[] flags, int index, byte mask)
         {
             return index >= 0 && index < flags.Length && (flags[index] & mask) != 0;
+        }
+
+        /// <summary>
+        /// selfId == 0 일 때 유효 데미지 패킷 1회로 즉시 self ID를 확정하고
+        /// 임시 보관된 각성 버프 타이머를 소급 적용한다.
+        /// </summary>
+        private void ResolveSelfIdFromDamage(ulong userId)
+        {
+            _selfIdResolver.ForceSetId(userId);
+            _lastSelfId = userId;
+            _consecutiveCandidateId = 0;
+            _consecutiveCandidateCount = 0;
+            RecognizedPacketCount++;
+            ActivatePendingAwakenBuffs(userId);
+        }
+
+        /// <summary>
+        /// selfId가 확정된 상태에서 다른 userId의 데미지가 연속으로
+        /// <see cref="ConsecutiveOverrideThreshold"/>회 이상 오면 selfId를 덮어쓴다.
+        /// </summary>
+        private void TrackConsecutiveCandidateDamage(ulong userId)
+        {
+            if (userId == _consecutiveCandidateId)
+            {
+                _consecutiveCandidateCount++;
+            }
+            else
+            {
+                _consecutiveCandidateId = userId;
+                _consecutiveCandidateCount = 1;
+            }
+
+            if (_consecutiveCandidateCount < ConsecutiveOverrideThreshold)
+                return;
+
+            LogHelper.Write($"SelfId override via consecutive damage: {_selfIdResolver.SelfId} → {userId} (n={_consecutiveCandidateCount})");
+            _selfIdResolver.ForceSetId(userId);
+            _lastSelfId = userId;
+            _consecutiveCandidateId = 0;
+            _consecutiveCandidateCount = 0;
+            RecognizedPacketCount++;
+        }
+
+        /// <summary>
+        /// selfId가 확정됐을 때 그 ID 소유자의 임시 각성 버프를 잔여 시간으로 타이머 활성화.
+        /// </summary>
+        private void ActivatePendingAwakenBuffs(ulong selfId)
+        {
+            if (_pendingAwakenBuffsByInstKey.Count == 0)
+                return;
+
+            foreach (var kv in _pendingAwakenBuffsByInstKey)
+            {
+                var pending = kv.Value;
+                if (pending.UserId != selfId)
+                    continue;
+
+                var elapsed = DateTime.UtcNow - pending.ReceivedUtc;
+                var remaining = pending.Duration - elapsed;
+
+                if (remaining <= TimeSpan.Zero)
+                {
+                    LogHelper.Write(
+                        $"[PendingAwakenBuff] key={pending.BuffKey} already expired (elapsed={elapsed.TotalSeconds:0.#}s)");
+                    continue;
+                }
+
+                LogHelper.Write(
+                    $"[PendingAwakenBuff] key={pending.BuffKey} remaining={remaining.TotalSeconds:0.#}s");
+
+                _timerTrigger.On(new TimerTriggerRequest(
+                    pending.BuffKey,
+                    remaining,
+                    AllowSound: false));
+            }
+
+            _pendingAwakenBuffsByInstKey.Clear();
+        }
+
+        private void CleanupPendingAwakenBuffs()
+        {
+            if (_pendingAwakenBuffsByInstKey.Count == 0)
+                return;
+
+            DateTime cutoff = DateTime.UtcNow - BuffTrackKeep;
+            var stale = new List<ulong>();
+
+            foreach (var kv in _pendingAwakenBuffsByInstKey)
+            {
+                if (kv.Value.ReceivedUtc < cutoff)
+                    stale.Add(kv.Key);
+            }
+
+            for (int i = 0; i < stale.Count; i++)
+                _pendingAwakenBuffsByInstKey.Remove(stale[i]);
+        }
+
+        private readonly struct PendingAwakenBuff
+        {
+            public ulong UserId { get; }
+            public uint BuffKey { get; }
+            public TimeSpan Duration { get; }
+            public DateTime ReceivedUtc { get; }
+
+            public PendingAwakenBuff(ulong userId, uint buffKey, TimeSpan duration, DateTime receivedUtc)
+            {
+                UserId = userId;
+                BuffKey = buffKey;
+                Duration = duration;
+                ReceivedUtc = receivedUtc;
+            }
         }
     }
 }
