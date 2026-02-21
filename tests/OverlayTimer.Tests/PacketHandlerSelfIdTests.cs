@@ -41,7 +41,7 @@ public class PacketHandlerSelfIdTests
     }
 
     [Fact]
-    public void Dps_IgnoredUntilSelfIdResolved()
+    public void Dps_AllowedBeforeSelfIdResolved()
     {
         var trigger = new CountingTrigger();
         var resolver = new SelfIdResolver(EnterWorldType);
@@ -62,13 +62,13 @@ public class PacketHandlerSelfIdTests
         handler.OnPacket(DpsDamageType, MakeDpsDamagePayload(userId: 2222u, targetId: 3333u, damage: 50000u, flags: flags));
         handler.OnPacket(DpsAttackType, MakeDpsAttackPayload(userId: 2222u, targetId: 3333u, key1: 77u, key2: 88u, flags: flags));
 
-        Assert.Equal(0, dpsTracker.GetSnapshot().TotalDamage);
+        Assert.Equal(50000, dpsTracker.GetSnapshot().TotalDamage);
 
         handler.OnPacket(EnterWorldType, MakeEnterWorldPayload(2222UL));
         handler.OnPacket(DpsDamageType, MakeDpsDamagePayload(userId: 2222u, targetId: 3333u, damage: 50000u, flags: flags));
         handler.OnPacket(DpsAttackType, MakeDpsAttackPayload(userId: 2222u, targetId: 3333u, key1: 77u, key2: 88u, flags: flags));
 
-        Assert.Equal(50000, dpsTracker.GetSnapshot().TotalDamage);
+        Assert.Equal(100000, dpsTracker.GetSnapshot().TotalDamage);
     }
 
     private sealed class CountingTrigger : ITimerTrigger

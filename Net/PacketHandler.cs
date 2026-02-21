@@ -112,6 +112,8 @@ namespace OverlayTimer.Net
             }
 
             ulong selfId = _selfIdResolver.SelfId;
+            // Buff is strict: until selfId is resolved, do not update buff state/timer.
+            // Otherwise another user's buff can overwrite local timer state.
             if (selfId == 0)
                 return true;
 
@@ -150,6 +152,7 @@ namespace OverlayTimer.Net
             }
 
             ulong selfId = _selfIdResolver.SelfId;
+            // Keep BuffEnd behavior consistent with BuffStart: ignore until selfId is known.
             if (selfId == 0)
                 return true;
 
@@ -239,14 +242,11 @@ namespace OverlayTimer.Net
                 return false;
 
             ulong selfId = _selfIdResolver.SelfId;
-            if (selfId == 0)
-            {
-                if (dataType == _dpsDamageType)
-                    return PacketDamage20897.TryParse(content, out _);
-                if (dataType == _dpsAttackType)
-                    return PacketAttack20389.TryParse(content, out _);
-                return false;
-            }
+            bool hasSelfId = selfId != 0;
+
+            // DPS is intentionally permissive before selfId resolution.
+            // Current traffic is effectively self-only, so provisional accumulation is acceptable.
+            // Once selfId is known, we immediately apply strict self filtering.
 
             CleanupPendingDamages();
 
@@ -255,7 +255,7 @@ namespace OverlayTimer.Net
                 if (!PacketDamage20897.TryParse(content, out var damagePacket))
                     return false;
 
-                if (damagePacket.UserId != selfId)
+                if (hasSelfId && damagePacket.UserId != selfId)
                     return true;
 
                 _pendingDamages.Add(new PendingDamage(damagePacket, DateTime.UtcNow));
@@ -267,7 +267,7 @@ namespace OverlayTimer.Net
             if (dataType != _dpsAttackType || !PacketAttack20389.TryParse(content, out var attackPacket))
                 return false;
 
-            if (attackPacket.UserId != selfId)
+            if (hasSelfId && attackPacket.UserId != selfId)
                 return true;
 
             int matchedIndex = -1;
