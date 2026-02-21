@@ -112,8 +112,10 @@ namespace OverlayTimer.Net
             }
 
             ulong selfId = _selfIdResolver.SelfId;
-            bool isSelfBuff = selfId != 0 && parsed.UserId == selfId;
-            if (selfId != 0 && !isSelfBuff)
+            if (selfId == 0)
+                return true;
+
+            if (parsed.UserId != selfId)
                 return true;
 
             var activeDuration = ResolveActiveDuration(parsed);
@@ -128,7 +130,7 @@ namespace OverlayTimer.Net
             _timerTrigger.On(new TimerTriggerRequest(
                 parsed.BuffKey,
                 activeDuration,
-                AllowSound: isSelfBuff));
+                AllowSound: true));
 
             LogHelper.Write(
                 $"[BuffStart] user={parsed.UserId} key={parsed.BuffKey} inst={parsed.InstKey} duration={activeDuration.TotalSeconds:0.#}s");
@@ -148,7 +150,10 @@ namespace OverlayTimer.Net
             }
 
             ulong selfId = _selfIdResolver.SelfId;
-            if (selfId != 0 && parsed.UserId != selfId)
+            if (selfId == 0)
+                return true;
+
+            if (parsed.UserId != selfId)
                 return true;
 
             // 모든 버프의 가동률 종료 처리 (instKey 기반, buffKeys 필터 무관)
@@ -233,12 +238,25 @@ namespace OverlayTimer.Net
             if (_dpsTracker == null)
                 return false;
 
+            ulong selfId = _selfIdResolver.SelfId;
+            if (selfId == 0)
+            {
+                if (dataType == _dpsDamageType)
+                    return PacketDamage20897.TryParse(content, out _);
+                if (dataType == _dpsAttackType)
+                    return PacketAttack20389.TryParse(content, out _);
+                return false;
+            }
+
             CleanupPendingDamages();
 
             if (dataType == _dpsDamageType)
             {
                 if (!PacketDamage20897.TryParse(content, out var damagePacket))
                     return false;
+
+                if (damagePacket.UserId != selfId)
+                    return true;
 
                 _pendingDamages.Add(new PendingDamage(damagePacket, DateTime.UtcNow));
                 if (_pendingDamages.Count > 256)
@@ -248,6 +266,9 @@ namespace OverlayTimer.Net
 
             if (dataType != _dpsAttackType || !PacketAttack20389.TryParse(content, out var attackPacket))
                 return false;
+
+            if (attackPacket.UserId != selfId)
+                return true;
 
             int matchedIndex = -1;
             for (int i = 0; i < _pendingDamages.Count; i++)
@@ -269,10 +290,6 @@ namespace OverlayTimer.Net
 
             var matched = _pendingDamages[matchedIndex].Packet;
             _pendingDamages.RemoveAt(matchedIndex);
-
-            ulong selfId = _selfIdResolver.SelfId;
-            if (selfId != 0 && matched.UserId != selfId)
-                return true;
 
             bool isCrit = IsFlagSet(attackPacket.Flags, 0, 0x01);
             bool isPower = IsFlagSet(attackPacket.Flags, 1, 0x02);
