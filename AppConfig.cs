@@ -16,8 +16,19 @@ namespace OverlayTimer
         [JsonPropertyName("packetTypes")]
         public PacketTypesConfig PacketTypes { get; set; } = new();
 
+        [JsonPropertyName("awakeningBuffKeys")]
+        public uint[] AwakeningBuffKeys { get; set; } = [1590198662u, 2024838942u, 1184371696u];
+
+        // legacy alias. If awakeningBuffKeys is empty, this value is used as a fallback.
         [JsonPropertyName("buffKeys")]
-        public uint[] BuffKeys { get; set; } = [1590198662u, 2024838942u, 1184371696u];
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public uint[]? LegacyBuffKeys { get; set; }
+
+        [JsonIgnore]
+        public uint[] TimerBuffKeys =>
+            AwakeningBuffKeys is { Length: > 0 }
+                ? AwakeningBuffKeys
+                : (LegacyBuffKeys ?? Array.Empty<uint>());
 
         [JsonPropertyName("timer")]
         public TimerConfig Timer { get; set; } = new();

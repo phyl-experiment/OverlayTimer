@@ -9,7 +9,7 @@ namespace OverlayTimer.Net
         private readonly SelfIdResolver _selfIdResolver;
         private readonly int _buffStartDataType;
         private readonly int _buffEndDataType;
-        private readonly HashSet<uint> _buffKeySet;
+        private readonly HashSet<uint> _awakeningBuffKeySet;
         private readonly PacketTypeLogger? _logger;
         private readonly DpsTracker? _dpsTracker;
         private readonly BuffUptimeTracker? _buffUptimeTracker;
@@ -30,7 +30,7 @@ namespace OverlayTimer.Net
             SelfIdResolver selfIdResolver,
             int buffStartDataType,
             int buffEndDataType,
-            uint[] buffKeys,
+            uint[] awakeningBuffKeys,
             PacketTypeLogger? logger = null,
             DpsTracker? dpsTracker = null,
             BuffUptimeTracker? buffUptimeTracker = null,
@@ -42,7 +42,7 @@ namespace OverlayTimer.Net
             _selfIdResolver = selfIdResolver;
             _buffStartDataType = buffStartDataType;
             _buffEndDataType = buffEndDataType;
-            _buffKeySet = new HashSet<uint>(buffKeys ?? Array.Empty<uint>());
+            _awakeningBuffKeySet = new HashSet<uint>(awakeningBuffKeys ?? Array.Empty<uint>());
             _logger = logger;
             _dpsTracker = dpsTracker;
             _buffUptimeTracker = buffUptimeTracker;
@@ -125,7 +125,7 @@ namespace OverlayTimer.Net
             // 모든 버프의 가동률을 추적 (buffKeys 필터 무관)
             _buffUptimeTracker?.OnBuffStart(parsed.BuffKey, parsed.InstKey, activeDuration);
 
-            if (!_buffKeySet.Contains(parsed.BuffKey))
+            if (!_awakeningBuffKeySet.Contains(parsed.BuffKey))
                 return true;
 
             TrackBuffStart(parsed, activeDuration);

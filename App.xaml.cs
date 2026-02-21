@@ -129,7 +129,7 @@ public partial class App : System.Windows.Application
             selfIdResolver,
             config.PacketTypes.BuffStart,
             config.PacketTypes.BuffEnd,
-            config.BuffKeys,
+            config.TimerBuffKeys,
             _typeLogger,
             _dpsTracker,
             _buffUptimeTracker,
