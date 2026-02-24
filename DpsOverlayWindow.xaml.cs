@@ -35,10 +35,12 @@ namespace OverlayTimer
         private readonly IReadOnlyDictionary<uint, string> _skillNames;
         private readonly Net.BuffUptimeTracker _buffUptimeTracker;
         private readonly IReadOnlyDictionary<uint, string> _buffNames;
+        private readonly DebugInfo? _debugInfo;
         private readonly DispatcherTimer _uiTimer;
         private bool _showTargets;
         private bool _showSkills;
         private bool _showBuffs;
+        private bool _showDebug;
         private bool _editMode;
         private bool _sizeInitialized;
         private double? _pendingWidth;
@@ -80,13 +82,15 @@ namespace OverlayTimer
         private const int WS_EX_TRANSPARENT = 0x20;
 
         public DpsOverlayWindow(DpsTracker tracker, IReadOnlyDictionary<uint, string> skillNames,
-            Net.BuffUptimeTracker buffUptimeTracker, IReadOnlyDictionary<uint, string> buffNames)
+            Net.BuffUptimeTracker buffUptimeTracker, IReadOnlyDictionary<uint, string> buffNames,
+            DebugInfo? debugInfo = null)
         {
             InitializeComponent();
             _tracker = tracker;
             _skillNames = skillNames;
             _buffUptimeTracker = buffUptimeTracker;
             _buffNames = buffNames;
+            _debugInfo = debugInfo;
 
             EnsureKeyboardHook();
             Closed += (_, _) => RemoveKeyboardHook();
@@ -343,6 +347,14 @@ namespace OverlayTimer
             BuffPanel.Visibility = _showBuffs ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        private void DebugToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            _showDebug = !_showDebug;
+            DebugPanel.Visibility = _showDebug ? Visibility.Visible : Visibility.Collapsed;
+            if (_showDebug)
+                RefreshUi();
+        }
+
         private void TargetItems_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_suppressSelectionChanged)
@@ -432,6 +444,35 @@ namespace OverlayTimer
             }
             BuffItems.ItemsSource = buffRows;
             BuffElapsedText.Text = $"\uAE30\uC900: {buffRef:0.0}s";
+
+            // 디버그 패널 갱신
+            if (_showDebug && _debugInfo != null)
+            {
+                var dbg = _debugInfo.GetSnapshot();
+                DebugNicText.Text = $"NIC: {dbg.NicName}";
+                DebugSelfIdText.Text = dbg.SelfId == 0
+                    ? "SelfId: \uBBF8\uD655\uC815"
+                    : $"SelfId: {dbg.SelfId}  (\uC18C\uC2A4: {dbg.SelfIdSource})";
+
+                var ewRows = new List<DebugLabelRow>(dbg.EnterWorldRecords.Count);
+                for (int i = dbg.EnterWorldRecords.Count - 1; i >= 0; i--)
+                {
+                    var r = dbg.EnterWorldRecords[i];
+                    ewRows.Add(new DebugLabelRow { Label = $"{r.Time:HH:mm:ss}  id={r.PlayerId}" });
+                }
+                DebugEnterWorldItems.ItemsSource = ewRows;
+
+                var dmgRows = new List<DebugLabelRow>(dbg.DamageRecords.Count);
+                for (int i = dbg.DamageRecords.Count - 1; i >= 0; i--)
+                {
+                    var r = dbg.DamageRecords[i];
+                    dmgRows.Add(new DebugLabelRow
+                    {
+                        Label = $"{r.Time:HH:mm:ss}  user={r.UserId}  tgt={r.TargetId}  dmg={r.Damage}"
+                    });
+                }
+                DebugDamageItems.ItemsSource = dmgRows;
+            }
         }
 
         private string ResolveBuffLabel(uint buffKey)
@@ -573,6 +614,11 @@ namespace OverlayTimer
         {
             public string BuffLabel { get; set; } = string.Empty;
             public string UptimeLabel { get; set; } = string.Empty;
+        }
+
+        private sealed class DebugLabelRow
+        {
+            public string Label { get; set; } = string.Empty;
         }
     }
 }

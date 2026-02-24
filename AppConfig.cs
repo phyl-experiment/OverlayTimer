@@ -39,6 +39,9 @@ namespace OverlayTimer
         [JsonPropertyName("sound")]
         public SoundConfig Sound { get; set; } = new();
 
+        [JsonPropertyName("selfId")]
+        public SelfIdConfig SelfId { get; set; } = new();
+
         [JsonPropertyName("logging")]
         public LoggingConfig Logging { get; set; } = new();
 
@@ -170,6 +173,23 @@ namespace OverlayTimer
 
         [JsonPropertyName("triggerFile")]
         public string TriggerFile { get; set; } = "assets/sounds/timer-trigger.wav";
+    }
+
+    public sealed class SelfIdConfig
+    {
+        /// <summary>
+        /// true: selfId 미확정 시 첫 유효 데미지 패킷의 userId로 즉시 확정.
+        /// false(기본): EnterWorld 패킷으로만 확정. 다른 플레이어 패킷이 섞일 때 사용.
+        /// </summary>
+        [JsonPropertyName("initialDamageFallback")]
+        public bool InitialDamageFallback { get; set; } = false;
+
+        /// <summary>
+        /// true(기본): selfId 확정 후 다른 userId가 연속 N회 오면 덮어씀.
+        /// false: 연속 데미지 덮어쓰기 비활성.
+        /// </summary>
+        [JsonPropertyName("consecutiveDamageOverride")]
+        public bool ConsecutiveDamageOverride { get; set; } = false;
     }
 
     public sealed class LoggingConfig

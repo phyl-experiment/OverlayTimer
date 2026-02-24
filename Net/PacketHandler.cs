@@ -13,6 +13,9 @@ namespace OverlayTimer.Net
         private readonly PacketTypeLogger? _logger;
         private readonly DpsTracker? _dpsTracker;
         private readonly BuffUptimeTracker? _buffUptimeTracker;
+        private readonly OverlayTimer.DebugInfo? _debugInfo;
+        private readonly bool _allowInitialDamageFallback;
+        private readonly bool _allowConsecutiveOverride;
         private readonly int _dpsAttackType;
         private readonly int _dpsDamageType;
         private readonly TimeSpan _defaultActiveDuration;
@@ -46,7 +49,10 @@ namespace OverlayTimer.Net
             BuffUptimeTracker? buffUptimeTracker = null,
             int dpsAttackType = 20389,
             int dpsDamageType = 20897,
-            int defaultActiveDurationSeconds = 20)
+            int defaultActiveDurationSeconds = 20,
+            OverlayTimer.DebugInfo? debugInfo = null,
+            bool allowInitialDamageFallback = false,
+            bool allowConsecutiveOverride = false)
         {
             _timerTrigger = timerTrigger;
             _selfIdResolver = selfIdResolver;
@@ -56,6 +62,9 @@ namespace OverlayTimer.Net
             _logger = logger;
             _dpsTracker = dpsTracker;
             _buffUptimeTracker = buffUptimeTracker;
+            _debugInfo = debugInfo;
+            _allowInitialDamageFallback = allowInitialDamageFallback;
+            _allowConsecutiveOverride = allowConsecutiveOverride;
             _dpsAttackType = dpsAttackType;
             _dpsDamageType = dpsDamageType;
             _defaultActiveDuration = TimeSpan.FromSeconds(Math.Max(1, defaultActiveDurationSeconds));
@@ -284,13 +293,21 @@ namespace OverlayTimer.Net
 
                 if (!hasSelfId)
                 {
-                    // Case 1: selfId 미확정 → 유효 데미지 1회로 즉시 확정
-                    ResolveSelfIdFromDamage(damagePacket.UserId);
+                    // Case 1: selfId 미확정 → fallback 활성 시 유효 데미지 1회로 즉시 확정
+                    if (_allowInitialDamageFallback)
+                        ResolveSelfIdFromDamage(damagePacket.UserId);
+                    else
+                    {
+                        // fallback 비활성: EnterWorld 대기 중 — 디버그 기록만 하고 DPS 추적 건너뜀
+                        _debugInfo?.AddDamageRecord(damagePacket.UserId, damagePacket.TargetId, damagePacket.Damage);
+                        return true;
+                    }
                 }
                 else if (damagePacket.UserId != selfId)
                 {
                     // Case 2: selfId 확정 상태에서 다른 userId → 연속 카운트, 임계치 초과 시 덮어쓰기
-                    TrackConsecutiveCandidateDamage(damagePacket.UserId);
+                    if (_allowConsecutiveOverride)
+                        TrackConsecutiveCandidateDamage(damagePacket.UserId);
                     return true;
                 }
                 else
@@ -300,6 +317,7 @@ namespace OverlayTimer.Net
                     _consecutiveCandidateCount = 0;
                 }
 
+                _debugInfo?.AddDamageRecord(damagePacket.UserId, damagePacket.TargetId, damagePacket.Damage);
                 _pendingDamages.Add(new PendingDamage(damagePacket, DateTime.UtcNow));
                 if (_pendingDamages.Count > 256)
                     _pendingDamages.RemoveRange(0, _pendingDamages.Count - 256);
@@ -392,6 +410,7 @@ namespace OverlayTimer.Net
             _lastSelfId = userId;
             _consecutiveCandidateId = 0;
             _consecutiveCandidateCount = 0;
+            _debugInfo?.SetSelfId(userId, "데미지(최초)");
             RecognizedPacketCount++;
             ActivatePendingAwakenBuffs(userId);
         }
@@ -420,6 +439,7 @@ namespace OverlayTimer.Net
             _lastSelfId = userId;
             _consecutiveCandidateId = 0;
             _consecutiveCandidateCount = 0;
+            _debugInfo?.SetSelfId(userId, "데미지(연속 덮어쓰기)");
             RecognizedPacketCount++;
         }
 

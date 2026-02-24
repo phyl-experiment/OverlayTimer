@@ -24,6 +24,7 @@ namespace OverlayTimer.Net
         private readonly string? _captureFilter;
         private readonly string? _deviceName;
         private readonly bool _autoReselect;
+        private readonly OverlayTimer.DebugInfo? _debugInfo;
 
         private readonly object _captureLock = new();
         private PacketStreamParser _parser;
@@ -59,7 +60,8 @@ namespace OverlayTimer.Net
             PacketHandler packetHandler,
             ProtocolConfig protocolConfig,
             PacketTypesConfig typesConfig,
-            LoggingConfig loggingConfig)
+            LoggingConfig loggingConfig,
+            OverlayTimer.DebugInfo? debugInfo = null)
         {
             _targetPort = targetPort;
             _captureFilter = captureFilter;
@@ -69,6 +71,7 @@ namespace OverlayTimer.Net
             _protocolConfig = protocolConfig;
             _typesConfig = typesConfig;
             _loggingConfig = loggingConfig ?? new LoggingConfig();
+            _debugInfo = debugInfo;
 
             _parser = new PacketStreamParser(
                 packetHandler,
@@ -339,6 +342,11 @@ namespace OverlayTimer.Net
                 _device = opened;
                 _activeCandidate = candidate;
                 ResetCaptureCounters();
+
+                string nicLabel = string.IsNullOrWhiteSpace(opened.Description)
+                    ? opened.Name
+                    : $"{opened.Description} ({opened.Name})";
+                _debugInfo?.SetNic(nicLabel);
 
                 LogHelper.Write(
                     $"[Sniffer] Capture started: device=\"{opened.Name}\" desc=\"{opened.Description ?? "(null)"}\" " +

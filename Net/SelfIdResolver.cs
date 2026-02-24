@@ -7,10 +7,12 @@ public sealed class SelfIdResolver
 
     private ulong _selfId;
     private readonly int _enterWorldType;
+    private readonly OverlayTimer.DebugInfo? _debugInfo;
 
-    public SelfIdResolver(int enterWorldType)
+    public SelfIdResolver(int enterWorldType, OverlayTimer.DebugInfo? debugInfo = null)
     {
         _enterWorldType = enterWorldType;
+        _debugInfo = debugInfo;
     }
 
     public ulong TryFeed(int dataType, ReadOnlySpan<byte> payload)
@@ -23,6 +25,8 @@ public sealed class SelfIdResolver
             {
                 LogHelper.Write($"SelfId set {id}");
                 _selfId = id;
+                _debugInfo?.AddEnterWorldRecord(id);
+                _debugInfo?.SetSelfId(id, "EnterWorld");
                 return id;
             }
         }

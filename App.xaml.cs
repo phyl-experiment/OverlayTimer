@@ -32,6 +32,7 @@ public partial class App : System.Windows.Application
     private PacketTypeLogger?   _typeLogger;
     private DpsTracker?         _dpsTracker;
     private BuffUptimeTracker?  _buffUptimeTracker;
+    private DebugInfo           _debugInfo = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -105,7 +106,8 @@ public partial class App : System.Windows.Application
             _dpsWindow = new DpsOverlayWindow(
                 _dpsTracker, skillNames,
                 buffUptimeTracker: _buffUptimeTracker,
-                buffNames: buffNames)
+                buffNames: buffNames,
+                debugInfo: _debugInfo)
             {
                 Left = config.Overlays.Dps.X,
                 Top  = config.Overlays.Dps.Y
@@ -148,7 +150,7 @@ public partial class App : System.Windows.Application
         _sniffer = null;
         _cts = new CancellationTokenSource();
 
-        var selfIdResolver = new SelfIdResolver(config.PacketTypes.EnterWorld);
+        var selfIdResolver = new SelfIdResolver(config.PacketTypes.EnterWorld, _debugInfo);
         var packetHandler = new PacketHandler(
             _timerTrigger!,
             selfIdResolver,
@@ -160,7 +162,10 @@ public partial class App : System.Windows.Application
             _buffUptimeTracker,
             config.PacketTypes.DpsAttack,
             config.PacketTypes.DpsDamage,
-            config.Timer.ActiveDurationSeconds);
+            config.Timer.ActiveDurationSeconds,
+            _debugInfo,
+            config.SelfId.InitialDamageFallback,
+            config.SelfId.ConsecutiveDamageOverride);
 
         _sniffer = new SnifferService(
             config.Network.TargetPort,
@@ -170,7 +175,8 @@ public partial class App : System.Windows.Application
             packetHandler,
             config.Protocol,
             config.PacketTypes,
-            config.Logging);
+            config.Logging,
+            _debugInfo);
 
         _sniffer.OnProbeSuccess = result =>
             Dispatcher.Invoke(() => HandleProbeSuccess(result));
