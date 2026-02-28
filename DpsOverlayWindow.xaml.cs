@@ -35,6 +35,8 @@ namespace OverlayTimer
         private readonly IReadOnlyDictionary<uint, string> _skillNames;
         private readonly Net.BuffUptimeTracker _buffUptimeTracker;
         private readonly IReadOnlyDictionary<uint, string> _buffNames;
+        private readonly Net.DpsBenchmarkSession _benchmarkSession;
+        private readonly DpsBenchmarkStore _benchmarkStore;
         private readonly DebugInfo? _debugInfo;
         private readonly DispatcherTimer _uiTimer;
         private bool _showTargets;
@@ -51,6 +53,7 @@ namespace OverlayTimer
         private double _resizeStartWidth;
         private readonly HashSet<ulong> _selectedTargetIds = new();
         private bool _suppressSelectionChanged;
+        private DpsRecordViewerWindow? _recordViewer;
 
         private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
@@ -83,6 +86,7 @@ namespace OverlayTimer
 
         public DpsOverlayWindow(DpsTracker tracker, IReadOnlyDictionary<uint, string> skillNames,
             Net.BuffUptimeTracker buffUptimeTracker, IReadOnlyDictionary<uint, string> buffNames,
+            Net.DpsBenchmarkSession benchmarkSession, DpsBenchmarkStore benchmarkStore,
             DebugInfo? debugInfo = null)
         {
             InitializeComponent();
@@ -90,7 +94,13 @@ namespace OverlayTimer
             _skillNames = skillNames;
             _buffUptimeTracker = buffUptimeTracker;
             _buffNames = buffNames;
+            _benchmarkSession = benchmarkSession;
+            _benchmarkStore = benchmarkStore;
             _debugInfo = debugInfo;
+
+            // 세션 완료 콜백: 캡처 스레드에서 호출되므로 Dispatcher 통해 UI 스레드로 전환
+            _benchmarkSession.OnCompleted = rawData =>
+                Dispatcher.Invoke(() => HandleBenchmarkCompleted(rawData));
 
             EnsureKeyboardHook();
             Closed += (_, _) => RemoveKeyboardHook();
@@ -323,9 +333,101 @@ namespace OverlayTimer
 
         private void ResetButton_Click(object sender, RoutedEventArgs e)
         {
+            _benchmarkSession.Cancel();
             _tracker.Reset();
             _buffUptimeTracker.Reset();
             _selectedTargetIds.Clear();
+            RefreshUi();
+        }
+
+        private void TwoMinButton_Click(object sender, RoutedEventArgs e)
+        {
+            var state = _benchmarkSession.State;
+            if (state == Net.BenchmarkState.Idle)
+            {
+                _benchmarkSession.Arm();
+            }
+            else
+            {
+                // Armed/Running → 취소
+                _benchmarkSession.Cancel();
+            }
+            RefreshUi();
+        }
+
+        private void RecordsButton_Click(object sender, RoutedEventArgs e)
+        {
+            NewRecordBadge.Visibility = Visibility.Hidden;
+
+            if (_recordViewer != null && _recordViewer.IsLoaded)
+            {
+                _recordViewer.Reload();
+                _recordViewer.Activate();
+                return;
+            }
+
+            _recordViewer = new DpsRecordViewerWindow(_benchmarkStore, _skillNames, _buffNames);
+            _recordViewer.Show();
+        }
+
+        private void HandleBenchmarkCompleted(Net.BenchmarkRawData raw)
+        {
+            // 세션 완료 시 버프 스냅샷을 현재 시점에서 읽어 레코드에 포함
+            var buffSnapshot = _buffUptimeTracker.GetSnapshot();
+
+            var record = new Net.DpsBenchmarkRecord
+            {
+                RecordedAt = DateTimeOffset.Now,
+                DurationSeconds = raw.DurationSeconds,
+                TotalDamage = raw.TotalDamage,
+                TotalDps = raw.TotalDps,
+                HitCount = raw.HitCount,
+                CritCount = raw.CritCount,
+                AddHitCount = raw.AddHitCount,
+                PowerCount = raw.PowerCount,
+                FastCount = raw.FastCount
+            };
+
+            foreach (var t in raw.Targets)
+                record.Targets.Add(new Net.BenchmarkTargetEntry
+                {
+                    TargetId = t.TargetId,
+                    Damage = t.Damage,
+                    Dps = t.Dps
+                });
+
+            foreach (var s in raw.Skills)
+                record.Skills.Add(new Net.BenchmarkSkillEntry
+                {
+                    SkillType = s.SkillType,
+                    SkillName = ResolveSkillLabel(s.SkillType),
+                    Damage = s.Damage,
+                    DamageRatio = s.DamageRatio,
+                    HitCount = s.HitCount,
+                    CritRate = s.CritRate,
+                    AddHitRate = s.AddHitRate,
+                    PowerRate = s.PowerRate,
+                    FastRate = s.FastRate
+                });
+
+            foreach (var b in buffSnapshot.Rows)
+            {
+                double pct = raw.DurationSeconds > 0
+                    ? Math.Min(b.TotalSeconds / raw.DurationSeconds * 100.0, 100.0)
+                    : 0.0;
+                record.Buffs.Add(new Net.BenchmarkBuffEntry
+                {
+                    BuffKey = b.BuffKey,
+                    BuffName = ResolveBuffLabel(b.BuffKey),
+                    TotalSeconds = b.TotalSeconds,
+                    UptimePct = pct
+                });
+            }
+
+            try { _benchmarkStore.Save(record); }
+            catch { /* 저장 실패는 무시 */ }
+
+            NewRecordBadge.Visibility = Visibility.Visible;
             RefreshUi();
         }
 
@@ -374,6 +476,9 @@ namespace OverlayTimer
 
             DpsText.Text = FormatMan(snapshot.TotalDps);
             MetaText.Text = $"Total {FormatMan(snapshot.TotalDamage)} / {snapshot.ElapsedSeconds:0.0}s";
+
+            // 2분 DPS 세션 상태 갱신
+            RefreshBenchmarkUi();
 
             var targetRows = new List<TargetRow>(snapshot.Targets.Count);
             foreach (var target in snapshot.Targets)
@@ -514,6 +619,38 @@ namespace OverlayTimer
         private static string FormatMan(long value)
         {
             return FormatMan((double)value);
+        }
+
+        private void RefreshBenchmarkUi()
+        {
+            var (state, elapsed) = _benchmarkSession.GetStatus();
+            TwoMinButton.Content = _benchmarkSession.GetButtonText();
+
+            switch (state)
+            {
+                case Net.BenchmarkState.Armed:
+                    BenchmarkStatusText.Visibility = Visibility.Visible;
+                    BenchmarkStatusText.Text = "\u23F3 \uCCAB \uD328\uD0B7 \uB300\uAE30 \uC911\u2026";
+                    BenchmarkStatusText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xFF, 0xAA, 0x33));
+                    break;
+
+                case Net.BenchmarkState.Running:
+                    BenchmarkStatusText.Visibility = Visibility.Visible;
+                    string elapsedStr = FormatBenchmarkTime(elapsed);
+                    BenchmarkStatusText.Text = $"\uD83D\uDCCA 2\uBD84 \uCE21\uC815 \uC911  {elapsedStr} / 2:00";
+                    BenchmarkStatusText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x44, 0xDD, 0x88));
+                    break;
+
+                default:
+                    BenchmarkStatusText.Visibility = Visibility.Collapsed;
+                    break;
+            }
+        }
+
+        private static string FormatBenchmarkTime(double seconds)
+        {
+            int s = (int)Math.Min(seconds, 120.0);
+            return $"{s / 60}:{s % 60:D2}";
         }
 
         private void UpdateEditMode()

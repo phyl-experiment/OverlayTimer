@@ -20,7 +20,7 @@
                 CornerRadius="16"
                 Padding="14">
             <StackPanel>
-                <!-- 헤더: TOTAL DPS 레이블 + 초기화 (데이터 리셋 액션, 토글과 맥락 구분) -->
+                <!-- 헤더: TOTAL DPS 레이블 + 버튼 그룹 -->
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -31,15 +31,47 @@
                                FontSize="13"
                                FontWeight="SemiBold"
                                VerticalAlignment="Center"/>
-                    <Button x:Name="ResetButton"
-                            Grid.Column="1"
-                            Width="54"
-                            Height="20"
-                            FontSize="11"
-                            Content="&#xCD08;&#xAE30;&#xD654;"
-                            Click="ResetButton_Click"
-                            VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="ResetButton"
+                                Width="54"
+                                Height="20"
+                                FontSize="11"
+                                Content="&#xCD08;&#xAE30;&#xD654;"
+                                Click="ResetButton_Click"/>
+                        <Button x:Name="TwoMinButton"
+                                Width="62"
+                                Height="20"
+                                FontSize="11"
+                                Margin="4,0,0,0"
+                                Content="2&#xBD84; DPS"
+                                Click="TwoMinButton_Click"/>
+                        <Grid Margin="4,0,0,0" Width="62" Height="20">
+                            <Button x:Name="RecordsButton"
+                                    FontSize="11"
+                                    Content="&#xAE30;&#xB85D; &#xD655;&#xC778;"
+                                    Click="RecordsButton_Click"/>
+                            <TextBlock x:Name="NewRecordBadge"
+                                       Text="NEW!"
+                                       Foreground="#FFFF6644"
+                                       FontSize="10"
+                                       FontWeight="Bold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Bottom"
+                                       Visibility="Hidden">
+                                <TextBlock.RenderTransform>
+                                    <TranslateTransform Y="15"/>
+                                </TextBlock.RenderTransform>
+                            </TextBlock>
+                        </Grid>
+                    </StackPanel>
                 </Grid>
+
+                <!-- 2분 DPS 세션 상태 표시 (Idle이면 Collapsed) -->
+                <TextBlock x:Name="BenchmarkStatusText"
+                           Visibility="Collapsed"
+                           FontSize="12"
+                           FontWeight="SemiBold"
+                           Margin="0,3,0,0"/>
 
                 <TextBlock x:Name="DpsText"
                            Text="0.0&#xB9CC;"

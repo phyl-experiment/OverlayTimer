@@ -28,11 +28,13 @@ public partial class App : System.Windows.Application
     private ProbeConfigSnapshot? _probeRollbackSnapshot;
 
     // sniffer 재시작 시에도 보존하는 객체
-    private ITimerTrigger?      _timerTrigger;
-    private PacketTypeLogger?   _typeLogger;
-    private DpsTracker?         _dpsTracker;
-    private BuffUptimeTracker?  _buffUptimeTracker;
-    private DebugInfo           _debugInfo = new();
+    private ITimerTrigger?          _timerTrigger;
+    private PacketTypeLogger?       _typeLogger;
+    private DpsTracker?             _dpsTracker;
+    private BuffUptimeTracker?      _buffUptimeTracker;
+    private DpsBenchmarkSession?    _benchmarkSession;
+    private DpsBenchmarkStore?      _benchmarkStore;
+    private DebugInfo               _debugInfo = new();
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -100,6 +102,15 @@ public partial class App : System.Windows.Application
 
         _dpsTracker        = new DpsTracker();
         _buffUptimeTracker = new BuffUptimeTracker();
+        _benchmarkSession  = new DpsBenchmarkSession();
+        _benchmarkStore    = new DpsBenchmarkStore();
+
+        // 세션이 Running으로 전환될 때 메인 DPS/버프 트래커를 리셋해 측정 시작점을 일치시킨다.
+        _benchmarkSession.OnSessionStarted = () =>
+        {
+            _dpsTracker.Reset();
+            _buffUptimeTracker.Reset();
+        };
 
         if (config.Overlays.Dps.Enabled)
         {
@@ -107,6 +118,8 @@ public partial class App : System.Windows.Application
                 _dpsTracker, skillNames,
                 buffUptimeTracker: _buffUptimeTracker,
                 buffNames: buffNames,
+                benchmarkSession: _benchmarkSession,
+                benchmarkStore: _benchmarkStore,
                 debugInfo: _debugInfo)
             {
                 Left = config.Overlays.Dps.X,
@@ -163,9 +176,11 @@ public partial class App : System.Windows.Application
             config.PacketTypes.DpsAttack,
             config.PacketTypes.DpsDamage,
             config.Timer.ActiveDurationSeconds,
+            config.Timer.CycleTotalSeconds,
             _debugInfo,
             config.SelfId.InitialDamageFallback,
-            config.SelfId.ConsecutiveDamageOverride);
+            config.SelfId.ConsecutiveDamageOverride,
+            _benchmarkSession);
 
         _sniffer = new SnifferService(
             config.Network.TargetPort,

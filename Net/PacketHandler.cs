@@ -13,12 +13,14 @@ namespace OverlayTimer.Net
         private readonly PacketTypeLogger? _logger;
         private readonly DpsTracker? _dpsTracker;
         private readonly BuffUptimeTracker? _buffUptimeTracker;
+        private readonly DpsBenchmarkSession? _benchmarkSession;
         private readonly OverlayTimer.DebugInfo? _debugInfo;
         private readonly bool _allowInitialDamageFallback;
         private readonly bool _allowConsecutiveOverride;
         private readonly int _dpsAttackType;
         private readonly int _dpsDamageType;
         private readonly TimeSpan _defaultActiveDuration;
+        private readonly TimeSpan _cycleTotalDuration;
 
         private readonly List<PendingDamage> _pendingDamages = new();
         private readonly Dictionary<ulong, TrackedBuffStart> _trackedBuffStartsByInstKey = new();
@@ -50,9 +52,11 @@ namespace OverlayTimer.Net
             int dpsAttackType = 20389,
             int dpsDamageType = 20897,
             int defaultActiveDurationSeconds = 20,
+            int cycleTotalSeconds = 90,
             OverlayTimer.DebugInfo? debugInfo = null,
             bool allowInitialDamageFallback = false,
-            bool allowConsecutiveOverride = false)
+            bool allowConsecutiveOverride = false,
+            DpsBenchmarkSession? benchmarkSession = null)
         {
             _timerTrigger = timerTrigger;
             _selfIdResolver = selfIdResolver;
@@ -62,12 +66,14 @@ namespace OverlayTimer.Net
             _logger = logger;
             _dpsTracker = dpsTracker;
             _buffUptimeTracker = buffUptimeTracker;
+            _benchmarkSession = benchmarkSession;
             _debugInfo = debugInfo;
             _allowInitialDamageFallback = allowInitialDamageFallback;
             _allowConsecutiveOverride = allowConsecutiveOverride;
             _dpsAttackType = dpsAttackType;
             _dpsDamageType = dpsDamageType;
             _defaultActiveDuration = TimeSpan.FromSeconds(Math.Max(1, defaultActiveDurationSeconds));
+            _cycleTotalDuration = TimeSpan.FromSeconds(Math.Max(30, cycleTotalSeconds));
         }
 
         public void OnPacket(int dataType, ReadOnlySpan<byte> content)
@@ -165,9 +171,11 @@ namespace OverlayTimer.Net
                 return true;
 
             TrackBuffStart(parsed, activeDuration);
+            var cooldownDuration = _cycleTotalDuration - activeDuration;
             _timerTrigger.On(new TimerTriggerRequest(
                 parsed.BuffKey,
                 activeDuration,
+                CooldownDuration: cooldownDuration,
                 AllowSound: true));
 
             LogHelper.Write(
@@ -358,6 +366,7 @@ namespace OverlayTimer.Net
             uint skillType = DpsSkillClassifier.NormalizeSkillType(attackPacket.Key1, attackPacket.Flags);
 
             _dpsTracker.AddDamage(matched.TargetId, matched.Damage, skillType, isCrit, isAddHit, isPower, isFast);
+            _benchmarkSession?.OnDamage(matched.TargetId, matched.Damage, skillType, isCrit, isAddHit, isPower, isFast);
             return true;
         }
 

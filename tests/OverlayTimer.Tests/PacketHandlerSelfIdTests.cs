@@ -64,7 +64,8 @@ public class PacketHandlerSelfIdTests
             dpsTracker: dpsTracker,
             buffUptimeTracker: null,
             dpsAttackType: DpsAttackType,
-            dpsDamageType: DpsDamageType);
+            dpsDamageType: DpsDamageType,
+            allowInitialDamageFallback: true);
 
         byte[] flags = [0x01, 0x02, 0x03, 0x08, 0x00, 0x00, 0x00];
 
@@ -94,7 +95,8 @@ public class PacketHandlerSelfIdTests
             dpsTracker: dpsTracker,
             buffUptimeTracker: null,
             dpsAttackType: DpsAttackType,
-            dpsDamageType: DpsDamageType);
+            dpsDamageType: DpsDamageType,
+            allowInitialDamageFallback: true);
 
         byte[] flags = [0x01, 0x02, 0x03, 0x08, 0x00, 0x00, 0x00];
 
