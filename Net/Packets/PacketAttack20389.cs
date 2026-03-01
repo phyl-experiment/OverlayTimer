@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 
 namespace OverlayTimer.Net
 {
-    public readonly struct PacketAttack20389
+    public readonly struct PacketAttack20389 : IPacketParser<PacketAttack20389>
     {
         public ulong UserId { get; }
         public ulong TargetId { get; }

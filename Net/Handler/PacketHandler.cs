@@ -133,15 +133,8 @@ namespace OverlayTimer.Net
 
         private bool TryHandleBuffStart(ReadOnlySpan<byte> content)
         {
-            PacketBuffStart parsed;
-            try
-            {
-                parsed = PacketBuffStart.Parse(content);
-            }
-            catch
-            {
+            if (!PacketBuffStart.TryParse(content, out var parsed))
                 return false;
-            }
 
             ulong selfId = _selfIdResolver.SelfId;
             // Buff is strict: until selfId is resolved, do not update buff state/timer.
@@ -185,15 +178,8 @@ namespace OverlayTimer.Net
 
         private bool TryHandleBuffEnd(ReadOnlySpan<byte> content)
         {
-            PacketBuffEnd parsed;
-            try
-            {
-                parsed = PacketBuffEnd.Parse(content);
-            }
-            catch
-            {
+            if (!PacketBuffEnd.TryParse(content, out var parsed))
                 return false;
-            }
 
             ulong selfId = _selfIdResolver.SelfId;
             // Keep BuffEnd behavior consistent with BuffStart: ignore until selfId is known.
