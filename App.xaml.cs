@@ -64,12 +64,15 @@ public partial class App : System.Windows.Application
 
         _timerTrigger = NoopTimerTrigger.Instance;
 
+        var appIcon = LoadAppIcon();
+
         if (config.Overlays.Timer.Enabled)
         {
             var window = new OverlayTimerWindow
             {
                 Left = config.Overlays.Timer.X,
-                Top  = config.Overlays.Timer.Y
+                Top  = config.Overlays.Timer.Y,
+                Icon = appIcon
             };
             window.SetInitialSize(config.Overlays.Timer.Width, config.Overlays.Timer.Height);
             _timerWindow = window;
@@ -95,7 +98,13 @@ public partial class App : System.Windows.Application
             };
             window.Show();
 
-            _timerTrigger = new OverlayTriggerTimer(window, config.Timer, config.Sound);
+            var overlayTrigger = new OverlayTriggerTimer(window, config.Timer, config.Sound);
+            overlayTrigger.OnCooldownToggled = isShort =>
+            {
+                config.Timer.UseShortCooldown = isShort;
+                TrySaveConfig("cooldown-toggle");
+            };
+            _timerTrigger = overlayTrigger;
             _typeLogger   = new PacketTypeLogger();
             OverlayTimerWindow.OnF9Press = _typeLogger.TogglePhase;
         }
@@ -123,7 +132,8 @@ public partial class App : System.Windows.Application
                 debugInfo: _debugInfo)
             {
                 Left = config.Overlays.Dps.X,
-                Top  = config.Overlays.Dps.Y
+                Top  = config.Overlays.Dps.Y,
+                Icon = appIcon
             };
             _dpsWindow.SetInitialSize(config.Overlays.Dps.Width, config.Overlays.Dps.Height);
             AttachWindowCloseToAppShutdown(_dpsWindow);
@@ -176,7 +186,6 @@ public partial class App : System.Windows.Application
             config.PacketTypes.DpsAttack,
             config.PacketTypes.DpsDamage,
             config.Timer.ActiveDurationSeconds,
-            config.Timer.CycleTotalSeconds,
             _debugInfo,
             config.SelfId.InitialDamageFallback,
             config.SelfId.ConsecutiveDamageOverride,
@@ -505,14 +514,55 @@ public partial class App : System.Windows.Application
 
         menu.Items.Add("종료").Click += (_, _) => Dispatcher.Invoke(BeginShutdown);
 
+        var trayIconImage = TryLoadTrayIcon() ?? BuildIcon();
         var icon = new NotifyIcon
         {
-            Icon             = BuildIcon(),
+            Icon             = trayIconImage,
             Text             = "OverlayTimer",
             Visible          = true,
             ContextMenuStrip = menu
         };
         return icon;
+    }
+
+    private static Icon? TryLoadTrayIcon()
+    {
+        try
+        {
+            var sri = System.Windows.Application.GetResourceStream(
+                new Uri("pack://application:,,,/assets/app.ico"));
+            if (sri == null) return null;
+            using var stream = sri.Stream;
+            return new Icon(stream, new System.Drawing.Size(32, 32));
+        }
+        catch { return null; }
+    }
+
+    private static System.Windows.Media.ImageSource? LoadAppIcon()
+    {
+        try
+        {
+            var sri = System.Windows.Application.GetResourceStream(
+                new Uri("pack://application:,,,/assets/app.ico"));
+            if (sri == null) return null;
+
+            using var stream = sri.Stream;
+            var decoder = new System.Windows.Media.Imaging.IconBitmapDecoder(
+                stream,
+                System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
+                System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+
+            // 가장 큰 해상도 프레임을 선택 (WPF가 크기에 맞게 스케일)
+            var frame = decoder.Frames
+                .OrderByDescending(f => f.PixelWidth)
+                .First();
+            frame.Freeze();
+            return frame;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static Icon BuildIcon()

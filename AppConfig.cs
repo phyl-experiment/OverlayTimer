@@ -165,9 +165,11 @@ namespace OverlayTimer
         [JsonPropertyName("cooldownLongSeconds")]
         public int CooldownLongSeconds { get; set; } = 70;
 
-        /// <summary>버프 지속시간 + 쿨타임의 합계 (초). 버프 시간이 기본값과 다를 때 쿨타임을 자동 조정.</summary>
-        [JsonPropertyName("cycleTotalSeconds")]
-        public int CycleTotalSeconds { get; set; } = 90;
+        /// <summary>마지막으로 선택된 쿨타임. true = 32s, false = 70s.</summary>
+        [JsonPropertyName("useShortCooldown")]
+        public bool UseShortCooldown { get; set; } = false;
+
+
     }
 
     public sealed class SoundConfig

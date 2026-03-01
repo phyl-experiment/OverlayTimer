@@ -5,7 +5,7 @@ namespace OverlayTimer.Net
     public readonly record struct TimerTriggerRequest(
         uint BuffKey,
         TimeSpan ActiveDuration,
-        TimeSpan? CooldownDuration = null,
+        bool AdjustCooldownForActiveDuration = false,
         bool AllowSound = true);
 
     public interface ITimerTrigger

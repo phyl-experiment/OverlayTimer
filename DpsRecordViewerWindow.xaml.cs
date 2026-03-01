@@ -22,6 +22,26 @@ namespace OverlayTimer
             _store = store;
             _skillNames = skillNames;
             _buffNames = buffNames;
+            Icon = LoadIcon();
+        }
+
+        private static System.Windows.Media.ImageSource? LoadIcon()
+        {
+            try
+            {
+                var sri = System.Windows.Application.GetResourceStream(
+                    new Uri("pack://application:,,,/assets/app.ico"));
+                if (sri == null) return null;
+                using var stream = sri.Stream;
+                var decoder = new System.Windows.Media.Imaging.IconBitmapDecoder(
+                    stream,
+                    System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
+                    System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+                var frame = decoder.Frames.OrderByDescending(f => f.PixelWidth).First();
+                frame.Freeze();
+                return frame;
+            }
+            catch { return null; }
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)

@@ -28,6 +28,9 @@ namespace OverlayTimer.Net
         private bool _runtimeCooldownForCurrentCycle;
         private readonly SoundPlayer? _triggerSoundPlayer;
 
+        /// <summary>쿨타임이 토글될 때 호출. 인자: isShort (true=32s, false=70s)</summary>
+        public Action<bool>? OnCooldownToggled;
+
         public OverlayTriggerTimer(OverlayTimerWindow window, TimerConfig timer, SoundConfig sound)
         {
             _window = window;
@@ -37,7 +40,7 @@ namespace OverlayTimer.Net
             _defaultActiveDuration = TimeSpan.FromSeconds(timer.ActiveDurationSeconds);
             _cooldownShort = TimeSpan.FromSeconds(timer.CooldownShortSeconds);
             _cooldownLong = TimeSpan.FromSeconds(timer.CooldownLongSeconds);
-            _manualCooldownDuration = _cooldownLong;
+            _manualCooldownDuration = timer.UseShortCooldown ? _cooldownShort : _cooldownLong;
 
             _currentActiveDuration = _defaultActiveDuration;
             _currentCooldownDuration = _manualCooldownDuration;
@@ -75,12 +78,17 @@ namespace OverlayTimer.Net
                 return false;
 
             var activeDuration = NormalizeDuration(request.ActiveDuration, _defaultActiveDuration);
-            TimeSpan cooldownDuration;
 
-            if (request.CooldownDuration.HasValue)
+            // 버프 지속시간이 기본값과 다를 때 delta만큼 쿨타임을 보정한다.
+            // 소급 적용(retroactive)처럼 adjustCooldown이 false인 경우는 manual 값 그대로 사용.
+            TimeSpan cooldownDuration;
+            if (request.AdjustCooldownForActiveDuration)
             {
-                cooldownDuration = NormalizeDuration(request.CooldownDuration.Value, _manualCooldownDuration);
-                _runtimeCooldownForCurrentCycle = true;
+                var delta = activeDuration - _defaultActiveDuration;
+                cooldownDuration = _manualCooldownDuration - delta;
+                if (cooldownDuration < TimeSpan.FromSeconds(1))
+                    cooldownDuration = TimeSpan.FromSeconds(1);
+                _runtimeCooldownForCurrentCycle = (delta != TimeSpan.Zero);
             }
             else
             {
@@ -160,6 +168,8 @@ namespace OverlayTimer.Net
                 _manualCooldownDuration = (_manualCooldownDuration == _cooldownShort)
                     ? _cooldownLong
                     : _cooldownShort;
+
+                OnCooldownToggled?.Invoke(_manualCooldownDuration == _cooldownShort);
 
                 if (_phase == Phase.Cooldown)
                 {

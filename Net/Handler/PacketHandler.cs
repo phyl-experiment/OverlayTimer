@@ -20,7 +20,6 @@ namespace OverlayTimer.Net
         private readonly int _dpsAttackType;
         private readonly int _dpsDamageType;
         private readonly TimeSpan _defaultActiveDuration;
-        private readonly TimeSpan _cycleTotalDuration;
 
         private readonly List<PendingDamage> _pendingDamages = new();
         private readonly Dictionary<ulong, TrackedBuffStart> _trackedBuffStartsByInstKey = new();
@@ -52,7 +51,6 @@ namespace OverlayTimer.Net
             int dpsAttackType = 20389,
             int dpsDamageType = 20897,
             int defaultActiveDurationSeconds = 20,
-            int cycleTotalSeconds = 90,
             OverlayTimer.DebugInfo? debugInfo = null,
             bool allowInitialDamageFallback = false,
             bool allowConsecutiveOverride = false,
@@ -73,7 +71,6 @@ namespace OverlayTimer.Net
             _dpsAttackType = dpsAttackType;
             _dpsDamageType = dpsDamageType;
             _defaultActiveDuration = TimeSpan.FromSeconds(Math.Max(1, defaultActiveDurationSeconds));
-            _cycleTotalDuration = TimeSpan.FromSeconds(Math.Max(30, cycleTotalSeconds));
         }
 
         public void OnPacket(int dataType, ReadOnlySpan<byte> content)
@@ -164,11 +161,10 @@ namespace OverlayTimer.Net
                 return true;
 
             TrackBuffStart(parsed, activeDuration);
-            var cooldownDuration = _cycleTotalDuration - activeDuration;
             _timerTrigger.On(new TimerTriggerRequest(
                 parsed.BuffKey,
                 activeDuration,
-                CooldownDuration: cooldownDuration,
+                AdjustCooldownForActiveDuration: true,
                 AllowSound: true));
 
             LogHelper.Write(
