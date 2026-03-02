@@ -12,9 +12,9 @@ namespace OverlayTimer.Net
     {
         private enum Phase { Idle, Active, Cooldown }
 
-        private static readonly Brush _activeColor = MakeBrush(100, 220, 120);   // 초록
-        private static readonly Brush _cooldownColor = MakeBrush(255, 100, 100); // 빨강
-        private static readonly Brush _readyColor = MakeBrush(180, 180, 180);    // 회색
+        private readonly Brush _activeColor;
+        private readonly Brush _cooldownColor;
+        private readonly Brush _readyColor;
 
         private static Brush MakeBrush(byte r, byte g, byte b)
         {
@@ -50,6 +50,11 @@ namespace OverlayTimer.Net
             _window = window;
             _ui = window.Dispatcher;
             _window.PreviewMouseRightButtonDown += OnWindowPreviewRightDown;
+
+            var c = timer.Colors;
+            _activeColor   = MakeBrush(c.Active.R,   c.Active.G,   c.Active.B);
+            _cooldownColor = MakeBrush(c.Cooldown.R, c.Cooldown.G, c.Cooldown.B);
+            _readyColor    = MakeBrush(c.Ready.R,    c.Ready.G,    c.Ready.B);
 
             _defaultActiveDuration = TimeSpan.FromSeconds(timer.ActiveDurationSeconds);
             _cooldownShort = TimeSpan.FromSeconds(timer.CooldownShortSeconds);

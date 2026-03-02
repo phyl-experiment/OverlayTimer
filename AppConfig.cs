@@ -169,7 +169,35 @@ namespace OverlayTimer
         [JsonPropertyName("useShortCooldown")]
         public bool UseShortCooldown { get; set; } = false;
 
+        [JsonPropertyName("colors")]
+        public TimerColorsConfig Colors { get; set; } = new();
+    }
 
+    public sealed class TimerColorsConfig
+    {
+        [JsonPropertyName("ready")]
+        public TimerColorEntry Ready { get; set; } = new(255, 255, 255);
+
+        [JsonPropertyName("active")]
+        public TimerColorEntry Active { get; set; } = new(100, 255, 120);
+
+        [JsonPropertyName("cooldown")]
+        public TimerColorEntry Cooldown { get; set; } = new(255, 100, 100);
+    }
+
+    public sealed class TimerColorEntry
+    {
+        [JsonPropertyName("r")]
+        public byte R { get; set; }
+
+        [JsonPropertyName("g")]
+        public byte G { get; set; }
+
+        [JsonPropertyName("b")]
+        public byte B { get; set; }
+
+        public TimerColorEntry() { }
+        public TimerColorEntry(byte r, byte g, byte b) { R = r; G = g; B = b; }
     }
 
     public sealed class SoundConfig
