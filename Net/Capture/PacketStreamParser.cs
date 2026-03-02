@@ -10,14 +10,14 @@ public sealed class PacketStreamParser
     // start~end 구간 내부인지 상태를 기억
     private bool _inFrame;
 
-    private readonly PacketHandler _packetHandler;
+    private readonly Action<int, byte[]> _onPacket;
 
     /// <summary>지금까지 완료된 프레임(EndMarker 도달) 수. 실패 감지에 사용.</summary>
     public int FramesFound { get; private set; }
 
-    public PacketStreamParser(PacketHandler packetHandler, byte[] startMarker, byte[] endMarker)
+    public PacketStreamParser(Action<int, byte[]> onPacket, byte[] startMarker, byte[] endMarker)
     {
-        _packetHandler = packetHandler;
+        _onPacket = onPacket;
         _startMarker = startMarker;
         _endMarker = endMarker;
     }
@@ -100,7 +100,7 @@ public sealed class PacketStreamParser
             var content = new byte[length];
             Buffer.BlockCopy(data, pivot + 9, content, 0, length);
 
-            _packetHandler.OnPacket(dataType, content);
+            _onPacket(dataType, content);
 
             pivot += 9 + length;
         }

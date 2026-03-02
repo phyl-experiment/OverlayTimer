@@ -74,7 +74,7 @@ namespace OverlayTimer.Net
             _debugInfo = debugInfo;
 
             _parser = new PacketStreamParser(
-                packetHandler,
+                (dt, p) => packetHandler.OnPacket(dt, p),
                 protocolConfig.StartMarkerBytes,
                 protocolConfig.EndMarkerBytes);
             _worker = new CaptureWorker(_parser, _protocolConfig, _typesConfig)
@@ -371,7 +371,7 @@ namespace OverlayTimer.Net
         private void ResetParserAndWorker()
         {
             _parser = new PacketStreamParser(
-                _packetHandler,
+                (dt, p) => _packetHandler.OnPacket(dt, p),
                 _protocolConfig.StartMarkerBytes,
                 _protocolConfig.EndMarkerBytes);
 
