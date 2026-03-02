@@ -9,6 +9,7 @@ using System.Windows.Threading;
 using WpfCursors = System.Windows.Input.Cursors;
 using Point = System.Windows.Point;
 using Size = System.Windows.Size;
+using Brush = System.Windows.Media.Brush;
 
 namespace OverlayTimer
 {
@@ -37,8 +38,9 @@ namespace OverlayTimer
         private const int WS_EX_TRANSPARENT = 0x20;
         private const double BaseRingSize = 220.0;
         private const double BaseRingStroke = 14.0;
-        private const double BaseModeFont = 20.0;
+        private const double BasePhaseLabelFont = 15.0;
         private const double BaseTimeFont = 48.0;
+        private const double BaseDetailFont = 11.0;
 
         internal static Action? OnF9Press;
 
@@ -340,8 +342,17 @@ namespace OverlayTimer
             SetWindowLong(hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED | WS_EX_TRANSPARENT);
         }
 
-        public void SetMode(string text) => ModeText.Text = text;
+        public void SetPhaseLabel(string text) => PhaseLabelText.Text = text;
+        public void SetDetail(string text) => DetailText.Text = text;
         public void SetTime(string text) => TimeText.Text = text;
+
+        public void SetPhaseColor(Brush color)
+        {
+            ProgressArc.Stroke = color;
+            PhaseLabelText.Foreground = color;
+            TimeText.Foreground = color;
+            DetailText.Foreground = color;
+        }
 
         public void SetProgress(double progress01)
         {
@@ -355,20 +366,17 @@ namespace OverlayTimer
                 return;
 
             const double borderPadding = 36.0; // Border padding(18) * 2
-            double modeReserve = ModeText.ActualHeight + ModeText.Margin.Top + ModeText.Margin.Bottom;
-            if (modeReserve <= 0)
-                modeReserve = BaseModeFont + 10.0;
-
             double availableWidth = Math.Max(1.0, ActualWidth - borderPadding);
-            double availableHeight = Math.Max(1.0, ActualHeight - borderPadding - modeReserve);
+            double availableHeight = Math.Max(1.0, ActualHeight - borderPadding);
             double ringSize = Math.Max(1.0, Math.Min(availableWidth, availableHeight));
 
             RingCanvas.Width = ringSize;
             RingCanvas.Height = ringSize;
 
             double scale = ringSize / BaseRingSize;
-            ModeText.FontSize = Math.Clamp(BaseModeFont * scale, 12.0, 40.0);
+            PhaseLabelText.FontSize = Math.Clamp(BasePhaseLabelFont * scale, 9.0, 28.0);
             TimeText.FontSize = Math.Clamp(BaseTimeFont * scale, 18.0, 96.0);
+            DetailText.FontSize = Math.Clamp(BaseDetailFont * scale, 7.0, 20.0);
 
             double stroke = Math.Clamp(BaseRingStroke * scale, 5.0, 32.0);
             BackgroundRing.StrokeThickness = stroke;

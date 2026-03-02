@@ -2,12 +2,26 @@ using System;
 using System.IO;
 using System.Media;
 using System.Windows.Threading;
+using Brush = System.Windows.Media.Brush;
+using Color = System.Windows.Media.Color;
+using SolidColorBrush = System.Windows.Media.SolidColorBrush;
 
 namespace OverlayTimer.Net
 {
     public sealed class OverlayTriggerTimer : ITimerTrigger
     {
         private enum Phase { Idle, Active, Cooldown }
+
+        private static readonly Brush _activeColor = MakeBrush(100, 220, 120);   // 초록
+        private static readonly Brush _cooldownColor = MakeBrush(255, 100, 100); // 빨강
+        private static readonly Brush _readyColor = MakeBrush(180, 180, 180);    // 회색
+
+        private static Brush MakeBrush(byte r, byte g, byte b)
+        {
+            var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+            brush.Freeze();
+            return brush;
+        }
 
         private readonly Dispatcher _ui;
         private readonly OverlayTimerWindow _window;
@@ -99,26 +113,39 @@ namespace OverlayTimer.Net
             _currentActiveDuration = activeDuration;
             _currentCooldownDuration = cooldownDuration;
 
-            StartPhase(Phase.Active, _currentActiveDuration, GetActiveModeText());
+            StartPhase(Phase.Active, _currentActiveDuration);
             if (request.AllowSound)
                 PlayTriggerSound();
 
             return true;
         }
 
-        private void StartPhase(Phase phase, TimeSpan duration, string modeText)
+        private void StartPhase(Phase phase, TimeSpan duration)
         {
             _phase = phase;
             _phaseStartUtc = DateTime.UtcNow;
             _phaseDuration = duration;
 
             _window.Show();
-            _window.SetMode(modeText);
+            UpdatePhaseAppearance();
 
             if (!_tick.IsEnabled)
                 _tick.Start();
 
             UpdateUi();
+        }
+
+        private void UpdatePhaseAppearance()
+        {
+            var (label, detail, color) = _phase switch
+            {
+                Phase.Active   => ("ACTIVE",   $"CD {(int)_currentCooldownDuration.TotalSeconds}s", _activeColor),
+                Phase.Cooldown => ("COOLDOWN",  $"{(int)_currentCooldownDuration.TotalSeconds}s",    _cooldownColor),
+                _              => ("READY",     $"CD {(int)_manualCooldownDuration.TotalSeconds}s",  _readyColor),
+            };
+            _window.SetPhaseLabel(label);
+            _window.SetDetail(detail);
+            _window.SetPhaseColor(color);
         }
 
         private void UpdateUi()
@@ -148,7 +175,7 @@ namespace OverlayTimer.Net
             {
                 if (_phase == Phase.Active)
                 {
-                    StartPhase(Phase.Cooldown, _currentCooldownDuration, GetCooldownModeText(_currentCooldownDuration));
+                    StartPhase(Phase.Cooldown, _currentCooldownDuration);
                     return;
                 }
 
@@ -182,7 +209,7 @@ namespace OverlayTimer.Net
                     if (elapsed >= _phaseDuration)
                         _phaseStartUtc = DateTime.UtcNow - _phaseDuration;
 
-                    _window.SetMode(GetCooldownModeText(_currentCooldownDuration));
+                    UpdatePhaseAppearance();
                     UpdateUi();
                     return;
                 }
@@ -192,10 +219,7 @@ namespace OverlayTimer.Net
                     _currentCooldownDuration = _manualCooldownDuration;
                 }
 
-                if (_phase == Phase.Active)
-                    _window.SetMode(GetActiveModeText());
-                else if (_phase == Phase.Idle)
-                    _window.SetMode(GetReadyModeText());
+                UpdatePhaseAppearance();
             });
         }
 
@@ -209,24 +233,9 @@ namespace OverlayTimer.Net
 
         private void SetReadyUi()
         {
-            _window.SetMode(GetReadyModeText());
+            UpdatePhaseAppearance();
             _window.SetTime("0.0s");
             _window.SetProgress(0);
-        }
-
-        private string GetReadyModeText()
-        {
-            return $"READY (CD {(int)_manualCooldownDuration.TotalSeconds}s)";
-        }
-
-        private string GetActiveModeText()
-        {
-            return $"Active ({(int)_currentActiveDuration.TotalSeconds}s / CD {(int)_currentCooldownDuration.TotalSeconds}s)";
-        }
-
-        private static string GetCooldownModeText(TimeSpan cooldownDuration)
-        {
-            return $"Cooldown ({(int)cooldownDuration.TotalSeconds}s)";
         }
 
         private static SoundPlayer? CreateSoundPlayer(SoundConfig sound)
