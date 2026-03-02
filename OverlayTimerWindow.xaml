@@ -28,6 +28,9 @@
                   HorizontalAlignment="Center"
                   VerticalAlignment="Center">
 
+                <!-- 딤드 배경 원 (시각 전용, 히트테스트 무관) -->
+                <Ellipse Fill="#77000000" IsHitTestVisible="False"/>
+
                 <!-- 배경 링 -->
                 <Ellipse x:Name="BackgroundRing" Stroke="#44FFFFFF" StrokeThickness="14"/>
 
@@ -61,7 +64,6 @@
                                Foreground="#B4B4B4"
                                FontSize="11"
                                HorizontalAlignment="Center"
-                               Opacity="0.65"
                                Margin="0,2,0,0"/>
 
                 </StackPanel>
