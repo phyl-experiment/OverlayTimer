@@ -407,7 +407,9 @@ namespace OverlayTimer
                     CritRate = s.CritRate,
                     AddHitRate = s.AddHitRate,
                     PowerRate = s.PowerRate,
-                    FastRate = s.FastRate
+                    FastRate = s.FastRate,
+                    MaxHitDamage = s.MaxHitDamage,
+                    MinHitDamage = s.MinHitDamage
                 });
 
             foreach (var b in buffSnapshot.Rows)
@@ -520,6 +522,7 @@ namespace OverlayTimer
                 {
                     SkillLabel = ResolveSkillLabel(skill.SkillType),
                     RatioLabel = $"{skill.DamageRatio:0.0}%  ({skill.HitCount}\uD0C0)",
+                    RangeLabel = BuildSkillRangeLabel(skill.MaxHitDamage, skill.MinHitDamage),
                     FlagLabel = $"\uD06C\uB9AC:{skill.CritRate:0.0}%  \uCD94\uAC00:{skill.AddHitRate:0.0}%  \uAC15\uD0C0:{skill.PowerRate:0.0}%  \uC5F0\uD0C0:{skill.FastRate:0.0}%"
                 });
             }
@@ -619,6 +622,13 @@ namespace OverlayTimer
         private static string FormatMan(long value)
         {
             return FormatMan((double)value);
+        }
+
+        private static string BuildSkillRangeLabel(long maxHitDamage, long minHitDamage)
+        {
+            _ = minHitDamage;
+            string maxLabel = maxHitDamage > 0 ? $"{FormatMan(maxHitDamage)}" : "-";
+            return $"\uCD5C\uB300:{maxLabel}";
         }
 
         private void RefreshBenchmarkUi()
@@ -744,6 +754,7 @@ namespace OverlayTimer
         {
             public string SkillLabel { get; set; } = string.Empty;
             public string RatioLabel { get; set; } = string.Empty;
+            public string RangeLabel { get; set; } = string.Empty;
             public string FlagLabel { get; set; } = string.Empty;
         }
 

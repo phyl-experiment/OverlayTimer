@@ -117,6 +117,7 @@ namespace OverlayTimer
                     ? ResolveSkillLabel(s.SkillType)
                     : s.SkillName,
                 RatioLabel = $"{s.DamageRatio:0.0}%  ({s.HitCount}\uD0C0)",
+                RangeLabel = BuildSkillRangeLabel(s.MaxHitDamage, s.MinHitDamage),
                 FlagLabel =
                     $"\uD06C\uB9AC:{s.CritRate:0.0}%  " +
                     $"\uCD94\uAC00:{s.AddHitRate:0.0}%  " +
@@ -170,6 +171,13 @@ namespace OverlayTimer
 
         private static string FormatMan(long value) => FormatMan((double)value);
 
+        private static string BuildSkillRangeLabel(long maxHitDamage, long minHitDamage)
+        {
+            _ = minHitDamage;
+            string maxLabel = maxHitDamage > 0 ? $"{FormatMan(maxHitDamage)}" : "-";
+            return $"\uCD5C\uB300:{maxLabel}";
+        }
+
         // ---------------------------------------------------------------------------
         // Row types for ItemsControl bindings
         // ---------------------------------------------------------------------------
@@ -214,6 +222,7 @@ namespace OverlayTimer
         {
             public string SkillLabel { get; set; } = string.Empty;
             public string RatioLabel { get; set; } = string.Empty;
+            public string RangeLabel { get; set; } = string.Empty;
             public string FlagLabel { get; set; } = string.Empty;
         }
 

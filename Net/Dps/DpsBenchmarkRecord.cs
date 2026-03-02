@@ -38,6 +38,8 @@ namespace OverlayTimer.Net
         public double AddHitRate { get; set; }
         public double PowerRate { get; set; }
         public double FastRate { get; set; }
+        public long MaxHitDamage { get; set; }
+        public long MinHitDamage { get; set; }
     }
 
     public sealed class BenchmarkBuffEntry

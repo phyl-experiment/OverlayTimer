@@ -162,6 +162,8 @@ namespace OverlayTimer.Net
             if (isAddHit) sk.AddHitCount++;
             if (isPower) sk.PowerCount++;
             if (isFast) sk.FastCount++;
+            if (damage > sk.MaxHitDamage) sk.MaxHitDamage = damage;
+            if (damage < sk.MinHitDamage) sk.MinHitDamage = damage;
         }
 
         private BenchmarkRawData BuildRawData(double durationSeconds)
@@ -183,7 +185,9 @@ namespace OverlayTimer.Net
                         ? kv.Value.AddHitCount * 100.0 / (kv.Value.HitCount - kv.Value.AddHitCount)
                         : 0.0,
                     kv.Value.HitCount > 0 ? kv.Value.PowerCount * 100.0 / kv.Value.HitCount : 0.0,
-                    kv.Value.HitCount > 0 ? kv.Value.FastCount * 100.0 / kv.Value.HitCount : 0.0))
+                    kv.Value.HitCount > 0 ? kv.Value.FastCount * 100.0 / kv.Value.HitCount : 0.0,
+                    kv.Value.HitCount > 0 ? kv.Value.MaxHitDamage : 0,
+                    kv.Value.HitCount > 0 && kv.Value.MinHitDamage != long.MaxValue ? kv.Value.MinHitDamage : 0))
                 .OrderByDescending(s => s.DamageRatio)
                 .ToArray();
 
@@ -215,6 +219,8 @@ namespace OverlayTimer.Net
             public long AddHitCount;
             public long PowerCount;
             public long FastCount;
+            public long MaxHitDamage;
+            public long MinHitDamage = long.MaxValue;
         }
     }
 
@@ -277,9 +283,12 @@ namespace OverlayTimer.Net
         public double AddHitRate { get; }
         public double PowerRate { get; }
         public double FastRate { get; }
+        public long MaxHitDamage { get; }
+        public long MinHitDamage { get; }
 
         public BenchmarkRawSkill(uint skillType, long damage, double damageRatio,
-            long hitCount, double critRate, double addHitRate, double powerRate, double fastRate)
+            long hitCount, double critRate, double addHitRate, double powerRate, double fastRate,
+            long maxHitDamage, long minHitDamage)
         {
             SkillType = skillType;
             Damage = damage;
@@ -289,6 +298,8 @@ namespace OverlayTimer.Net
             AddHitRate = addHitRate;
             PowerRate = powerRate;
             FastRate = fastRate;
+            MaxHitDamage = maxHitDamage;
+            MinHitDamage = minHitDamage;
         }
     }
 }

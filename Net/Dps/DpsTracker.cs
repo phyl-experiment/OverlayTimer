@@ -73,12 +73,7 @@ namespace OverlayTimer.Net
                     skill = new SkillStats();
                     _statsBySkill[skillType] = skill;
                 }
-                skill.Damage += damage;
-                skill.HitCount++;
-                if (isCrit) skill.CritCount++;
-                if (isAddHit) skill.AddHitCount++;
-                if (isPower) skill.PowerCount++;
-                if (isFast) skill.FastCount++;
+                AccumulateSkillStats(skill, damage, isCrit, isAddHit, isPower, isFast);
 
                 if (!_statsBySkillPerTarget.TryGetValue(targetId, out var targetSkills))
                 {
@@ -90,12 +85,7 @@ namespace OverlayTimer.Net
                     targetSkill = new SkillStats();
                     targetSkills[skillType] = targetSkill;
                 }
-                targetSkill.Damage += damage;
-                targetSkill.HitCount++;
-                if (isCrit) targetSkill.CritCount++;
-                if (isAddHit) targetSkill.AddHitCount++;
-                if (isPower) targetSkill.PowerCount++;
-                if (isFast) targetSkill.FastCount++;
+                AccumulateSkillStats(targetSkill, damage, isCrit, isAddHit, isPower, isFast);
 
                 _hitCount++;
                 if (isCrit) _critCount++;
@@ -148,7 +138,9 @@ namespace OverlayTimer.Net
                         // 분모에서 추가타 횟수를 제외해야 "원래 타격 중 추가타 발생률"이 정확해진다.
                         (kv.Value.HitCount - kv.Value.AddHitCount) > 0 ? kv.Value.AddHitCount * 100.0 / (kv.Value.HitCount - kv.Value.AddHitCount) : 0.0,
                         kv.Value.HitCount > 0 ? kv.Value.PowerCount * 100.0 / kv.Value.HitCount : 0.0,
-                        kv.Value.HitCount > 0 ? kv.Value.FastCount * 100.0 / kv.Value.HitCount : 0.0))
+                        kv.Value.HitCount > 0 ? kv.Value.FastCount * 100.0 / kv.Value.HitCount : 0.0,
+                        kv.Value.HitCount > 0 ? kv.Value.MaxHitDamage : 0,
+                        kv.Value.HitCount > 0 && kv.Value.MinHitDamage != long.MaxValue ? kv.Value.MinHitDamage : 0))
                     .OrderByDescending(x => x.DamageRatio)
                     .ToArray();
 
@@ -192,12 +184,7 @@ namespace OverlayTimer.Net
                             m = new SkillStats();
                             merged[skillType] = m;
                         }
-                        m.Damage += stats.Damage;
-                        m.HitCount += stats.HitCount;
-                        m.CritCount += stats.CritCount;
-                        m.AddHitCount += stats.AddHitCount;
-                        m.PowerCount += stats.PowerCount;
-                        m.FastCount += stats.FastCount;
+                        MergeSkillStats(m, stats);
                     }
                 }
 
@@ -210,10 +197,45 @@ namespace OverlayTimer.Net
                         kv.Value.HitCount > 0 ? kv.Value.CritCount * 100.0 / kv.Value.HitCount : 0.0,
                         (kv.Value.HitCount - kv.Value.AddHitCount) > 0 ? kv.Value.AddHitCount * 100.0 / (kv.Value.HitCount - kv.Value.AddHitCount) : 0.0,
                         kv.Value.HitCount > 0 ? kv.Value.PowerCount * 100.0 / kv.Value.HitCount : 0.0,
-                        kv.Value.HitCount > 0 ? kv.Value.FastCount * 100.0 / kv.Value.HitCount : 0.0))
+                        kv.Value.HitCount > 0 ? kv.Value.FastCount * 100.0 / kv.Value.HitCount : 0.0,
+                        kv.Value.HitCount > 0 ? kv.Value.MaxHitDamage : 0,
+                        kv.Value.HitCount > 0 && kv.Value.MinHitDamage != long.MaxValue ? kv.Value.MinHitDamage : 0))
                     .OrderByDescending(x => x.DamageRatio)
                     .ToArray();
             }
+        }
+
+        private static void AccumulateSkillStats(
+            SkillStats skill,
+            long damage,
+            bool isCrit,
+            bool isAddHit,
+            bool isPower,
+            bool isFast)
+        {
+            skill.Damage += damage;
+            skill.HitCount++;
+            if (isCrit) skill.CritCount++;
+            if (isAddHit) skill.AddHitCount++;
+            if (isPower) skill.PowerCount++;
+            if (isFast) skill.FastCount++;
+            if (damage > skill.MaxHitDamage) skill.MaxHitDamage = damage;
+            if (damage < skill.MinHitDamage) skill.MinHitDamage = damage;
+        }
+
+        private static void MergeSkillStats(SkillStats merged, SkillStats incoming)
+        {
+            merged.Damage += incoming.Damage;
+            merged.HitCount += incoming.HitCount;
+            merged.CritCount += incoming.CritCount;
+            merged.AddHitCount += incoming.AddHitCount;
+            merged.PowerCount += incoming.PowerCount;
+            merged.FastCount += incoming.FastCount;
+
+            if (incoming.MaxHitDamage > merged.MaxHitDamage)
+                merged.MaxHitDamage = incoming.MaxHitDamage;
+            if (incoming.MinHitDamage < merged.MinHitDamage)
+                merged.MinHitDamage = incoming.MinHitDamage;
         }
 
         private sealed class SkillStats
@@ -224,6 +246,8 @@ namespace OverlayTimer.Net
             public long AddHitCount;
             public long PowerCount;
             public long FastCount;
+            public long MaxHitDamage;
+            public long MinHitDamage = long.MaxValue;
         }
     }
 
@@ -251,6 +275,8 @@ namespace OverlayTimer.Net
         public double AddHitRate { get; }
         public double PowerRate { get; }
         public double FastRate { get; }
+        public long MaxHitDamage { get; }
+        public long MinHitDamage { get; }
 
         public DpsSkillSnapshot(
             uint skillType,
@@ -260,7 +286,9 @@ namespace OverlayTimer.Net
             double critRate,
             double addHitRate,
             double powerRate,
-            double fastRate)
+            double fastRate,
+            long maxHitDamage,
+            long minHitDamage)
         {
             SkillType = skillType;
             Damage = damage;
@@ -270,6 +298,8 @@ namespace OverlayTimer.Net
             AddHitRate = addHitRate;
             PowerRate = powerRate;
             FastRate = fastRate;
+            MaxHitDamage = maxHitDamage;
+            MinHitDamage = minHitDamage;
         }
     }
 
