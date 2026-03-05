@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using WpfCursors = System.Windows.Input.Cursors;
 using Point = System.Windows.Point;
@@ -346,12 +347,17 @@ namespace OverlayTimer
         public void SetDetail(string text) => DetailText.Text = text;
         public void SetTime(string text) => TimeText.Text = text;
 
-        public void SetPhaseColor(Brush color)
+        public void SetPhaseColor(Brush fill, Brush? stroke = null, double strokeThickness = 0.0,
+                                   double opacity = 1.0, DropShadowEffect? shadow = null)
         {
-            ProgressArc.Stroke = color;
-            PhaseLabelText.Foreground = color;
-            TimeText.Foreground = color;
-            DetailText.Foreground = color;
+            ProgressArc.Stroke = fill;
+            PhaseLabelText.Foreground = fill;
+            TimeText.Foreground = fill;
+            TimeText.Stroke = stroke;
+            TimeText.StrokeThickness = strokeThickness;
+            TimeText.Opacity = opacity;
+            TimeText.Effect = shadow;
+            DetailText.Foreground = fill;
         }
 
         public void SetProgress(double progress01)

@@ -5,6 +5,7 @@ using System.Windows.Threading;
 using Brush = System.Windows.Media.Brush;
 using Color = System.Windows.Media.Color;
 using SolidColorBrush = System.Windows.Media.SolidColorBrush;
+using DropShadowEffect = System.Windows.Media.Effects.DropShadowEffect;
 
 namespace OverlayTimer.Net
 {
@@ -12,15 +13,37 @@ namespace OverlayTimer.Net
     {
         private enum Phase { Idle, Active, Cooldown }
 
-        private readonly Brush _activeColor;
-        private readonly Brush _cooldownColor;
-        private readonly Brush _readyColor;
+        private readonly (Brush fill, Brush? stroke, double thickness, double opacity, DropShadowEffect? shadow) _activeStyle;
+        private readonly (Brush fill, Brush? stroke, double thickness, double opacity, DropShadowEffect? shadow) _cooldownStyle;
+        private readonly (Brush fill, Brush? stroke, double thickness, double opacity, DropShadowEffect? shadow) _readyStyle;
 
         private static Brush MakeBrush(byte r, byte g, byte b)
         {
             var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
             brush.Freeze();
             return brush;
+        }
+
+        private static (Brush fill, Brush? stroke, double thickness, double opacity, DropShadowEffect? shadow) MakeStyle(TimerColorEntry entry)
+        {
+            var fill = MakeBrush(entry.R, entry.G, entry.B);
+            Brush? stroke = entry.OutlineThickness > 0 ? MakeBrush(entry.OutlineR, entry.OutlineG, entry.OutlineB) : null;
+
+            DropShadowEffect? shadow = null;
+            if (entry.ShadowBlur > 0 || entry.ShadowDepth > 0)
+            {
+                shadow = new DropShadowEffect
+                {
+                    Color = Color.FromRgb(entry.ShadowR, entry.ShadowG, entry.ShadowB),
+                    BlurRadius = entry.ShadowBlur,
+                    ShadowDepth = entry.ShadowDepth,
+                    Opacity = Math.Clamp(entry.ShadowOpacity, 0.0, 1.0),
+                    Direction = 315
+                };
+                shadow.Freeze();
+            }
+
+            return (fill, stroke, entry.OutlineThickness, Math.Clamp(entry.Opacity, 0.0, 1.0), shadow);
         }
 
         private readonly Dispatcher _ui;
@@ -52,9 +75,9 @@ namespace OverlayTimer.Net
             _window.PreviewMouseRightButtonDown += OnWindowPreviewRightDown;
 
             var c = timer.Colors;
-            _activeColor   = MakeBrush(c.Active.R,   c.Active.G,   c.Active.B);
-            _cooldownColor = MakeBrush(c.Cooldown.R, c.Cooldown.G, c.Cooldown.B);
-            _readyColor    = MakeBrush(c.Ready.R,    c.Ready.G,    c.Ready.B);
+            _activeStyle   = MakeStyle(c.Active);
+            _cooldownStyle = MakeStyle(c.Cooldown);
+            _readyStyle    = MakeStyle(c.Ready);
 
             _defaultActiveDuration = TimeSpan.FromSeconds(timer.ActiveDurationSeconds);
             _cooldownShort = TimeSpan.FromSeconds(timer.CooldownShortSeconds);
@@ -142,15 +165,15 @@ namespace OverlayTimer.Net
 
         private void UpdatePhaseAppearance()
         {
-            var (label, detail, color) = _phase switch
+            var (style, label, detail) = _phase switch
             {
-                Phase.Active   => ("ACTIVE",   $"CD {(int)_currentCooldownDuration.TotalSeconds}s", _activeColor),
-                Phase.Cooldown => ("COOLDOWN",  $"{(int)_currentCooldownDuration.TotalSeconds}s",    _cooldownColor),
-                _              => ("READY",     $"CD {(int)_manualCooldownDuration.TotalSeconds}s",  _readyColor),
+                Phase.Active   => (_activeStyle,   "ACTIVE",   $"CD {(int)_currentCooldownDuration.TotalSeconds}s"),
+                Phase.Cooldown => (_cooldownStyle, "COOLDOWN", $"{(int)_currentCooldownDuration.TotalSeconds}s"),
+                _              => (_readyStyle,    "READY",    $"CD {(int)_manualCooldownDuration.TotalSeconds}s"),
             };
             _window.SetPhaseLabel(label);
             _window.SetDetail(detail);
-            _window.SetPhaseColor(color);
+            _window.SetPhaseColor(style.fill, style.stroke, style.thickness, style.opacity, style.shadow);
         }
 
         private void UpdateUi()

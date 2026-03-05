@@ -196,6 +196,50 @@ namespace OverlayTimer
         [JsonPropertyName("b")]
         public byte B { get; set; }
 
+        /// <summary>텍스트 외곽선 두께 (픽셀). 0이면 외곽선 없음.</summary>
+        [JsonPropertyName("outlineThickness")]
+        public double OutlineThickness { get; set; } = 0.0;
+
+        /// <summary>외곽선 색상 R (outlineThickness > 0일 때 사용). 기본값 0 = 검정.</summary>
+        [JsonPropertyName("outlineR")]
+        public byte OutlineR { get; set; } = 0;
+
+        /// <summary>외곽선 색상 G.</summary>
+        [JsonPropertyName("outlineG")]
+        public byte OutlineG { get; set; } = 0;
+
+        /// <summary>외곽선 색상 B.</summary>
+        [JsonPropertyName("outlineB")]
+        public byte OutlineB { get; set; } = 0;
+
+        /// <summary>텍스트 불투명도 (0.0 = 완전 투명, 1.0 = 완전 불투명). 기본값 1.0.</summary>
+        [JsonPropertyName("opacity")]
+        public double Opacity { get; set; } = 1.0;
+
+        /// <summary>그림자 흐림 반경 (픽셀). 0이면 그림자 없음.</summary>
+        [JsonPropertyName("shadowBlur")]
+        public double ShadowBlur { get; set; } = 0.0;
+
+        /// <summary>그림자 거리 (픽셀). shadowBlur > 0일 때 사용.</summary>
+        [JsonPropertyName("shadowDepth")]
+        public double ShadowDepth { get; set; } = 2.0;
+
+        /// <summary>그림자 불투명도 (0.0~1.0).</summary>
+        [JsonPropertyName("shadowOpacity")]
+        public double ShadowOpacity { get; set; } = 0.8;
+
+        /// <summary>그림자 색상 R. 기본값 0 = 검정.</summary>
+        [JsonPropertyName("shadowR")]
+        public byte ShadowR { get; set; } = 0;
+
+        /// <summary>그림자 색상 G.</summary>
+        [JsonPropertyName("shadowG")]
+        public byte ShadowG { get; set; } = 0;
+
+        /// <summary>그림자 색상 B.</summary>
+        [JsonPropertyName("shadowB")]
+        public byte ShadowB { get; set; } = 0;
+
         public TimerColorEntry() { }
         public TimerColorEntry(byte r, byte g, byte b) { R = r; G = g; B = b; }
     }
