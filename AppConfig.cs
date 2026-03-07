@@ -184,6 +184,18 @@ namespace OverlayTimer
         [JsonPropertyName("detailFontScale")]
         public double DetailFontScale { get; set; } = 1.0;
 
+        /// <summary>라벨 텍스트 FontWeight. "Normal", "SemiBold", "Bold" 등. 기본 Bold.</summary>
+        [JsonPropertyName("labelFontWeight")]
+        public string LabelFontWeight { get; set; } = "Bold";
+
+        /// <summary>메인(초) 텍스트 FontWeight. 기본 Bold.</summary>
+        [JsonPropertyName("timeFontWeight")]
+        public string TimeFontWeight { get; set; } = "Bold";
+
+        /// <summary>디테일 텍스트 FontWeight. 기본 Bold.</summary>
+        [JsonPropertyName("detailFontWeight")]
+        public string DetailFontWeight { get; set; } = "Bold";
+
         /// <summary>원형 링 테두리의 아웃라인 스타일.</summary>
         [JsonPropertyName("ringStyle")]
         public RingStyleConfig RingStyle { get; set; } = new();

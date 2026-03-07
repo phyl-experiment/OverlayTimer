@@ -382,6 +382,28 @@ namespace OverlayTimer
             UpdateDynamicLayout();
         }
 
+        public void ApplyFontWeights(string labelWeight, string timeWeight, string detailWeight)
+        {
+            PhaseLabelText.FontWeight = ParseFontWeight(labelWeight);
+            TimeText.FontWeight = ParseFontWeight(timeWeight);
+            DetailText.FontWeight = ParseFontWeight(detailWeight);
+        }
+
+        private static System.Windows.FontWeight ParseFontWeight(string value)
+        {
+            return value?.ToLowerInvariant() switch
+            {
+                "thin" => FontWeights.Thin,
+                "light" => FontWeights.Light,
+                "normal" or "regular" => FontWeights.Normal,
+                "medium" => FontWeights.Medium,
+                "semibold" => FontWeights.SemiBold,
+                "bold" => FontWeights.Bold,
+                "extrabold" => FontWeights.ExtraBold,
+                _ => FontWeights.Bold,
+            };
+        }
+
         public void ApplyRingStyle(RingStyleConfig cfg)
         {
             // 아웃라인 (안쪽 + 바깥쪽 두 개의 Ellipse)

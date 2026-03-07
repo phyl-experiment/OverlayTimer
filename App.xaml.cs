@@ -97,6 +97,7 @@ public partial class App : System.Windows.Application
                 RestartSaveDebounce();
             };
             window.ApplyFontScales(config.Timer.LabelFontScale, config.Timer.TimeFontScale, config.Timer.DetailFontScale);
+            window.ApplyFontWeights(config.Timer.LabelFontWeight, config.Timer.TimeFontWeight, config.Timer.DetailFontWeight);
             window.ApplyRingStyle(config.Timer.RingStyle);
             window.Show();
 
