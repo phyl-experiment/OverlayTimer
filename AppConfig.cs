@@ -171,6 +171,42 @@ namespace OverlayTimer
 
         [JsonPropertyName("colors")]
         public TimerColorsConfig Colors { get; set; } = new();
+
+        /// <summary>라벨 텍스트(Active/Cooldown 등) 추가 배율. 1.0 = 기본 크기.</summary>
+        [JsonPropertyName("labelFontScale")]
+        public double LabelFontScale { get; set; } = 1.0;
+
+        /// <summary>메인(초) 텍스트 추가 배율. 1.0 = 기본 크기.</summary>
+        [JsonPropertyName("timeFontScale")]
+        public double TimeFontScale { get; set; } = 1.0;
+
+        /// <summary>디테일 텍스트 추가 배율. 1.0 = 기본 크기.</summary>
+        [JsonPropertyName("detailFontScale")]
+        public double DetailFontScale { get; set; } = 1.0;
+
+        /// <summary>원형 링 테두리의 아웃라인 스타일.</summary>
+        [JsonPropertyName("ringStyle")]
+        public RingStyleConfig RingStyle { get; set; } = new();
+    }
+
+    public sealed class RingStyleConfig
+    {
+        /// <summary>링 외곽 아웃라인 두께 (픽셀). 0이면 아웃라인 없음.</summary>
+        [JsonPropertyName("outlineThickness")]
+        public double OutlineThickness { get; set; } = 2.0;
+
+        [JsonPropertyName("outlineR")]
+        public byte OutlineR { get; set; } = 0;
+
+        [JsonPropertyName("outlineG")]
+        public byte OutlineG { get; set; } = 0;
+
+        [JsonPropertyName("outlineB")]
+        public byte OutlineB { get; set; } = 0;
+
+        /// <summary>아웃라인 불투명도 (0.0~1.0).</summary>
+        [JsonPropertyName("outlineOpacity")]
+        public double OutlineOpacity { get; set; } = 1.0;
     }
 
     public sealed class TimerColorsConfig
@@ -185,6 +221,55 @@ namespace OverlayTimer
         public TimerColorEntry Cooldown { get; set; } = new(255, 100, 100);
     }
 
+    /// <summary>
+    /// 텍스트 외곽선·그림자·불투명도 스타일 설정.
+    /// TimerColorEntry의 메인(초) 텍스트, 라벨 텍스트, 디테일 텍스트에 각각 사용.
+    /// </summary>
+    public sealed class TextStyleConfig
+    {
+        [JsonPropertyName("outlineThickness")]
+        public double OutlineThickness { get; set; }
+
+        [JsonPropertyName("outlineR")]
+        public byte OutlineR { get; set; }
+
+        [JsonPropertyName("outlineG")]
+        public byte OutlineG { get; set; }
+
+        [JsonPropertyName("outlineB")]
+        public byte OutlineB { get; set; }
+
+        [JsonPropertyName("opacity")]
+        public double Opacity { get; set; } = 1.0;
+
+        [JsonPropertyName("shadowBlur")]
+        public double ShadowBlur { get; set; }
+
+        [JsonPropertyName("shadowDepth")]
+        public double ShadowDepth { get; set; } = 2.0;
+
+        [JsonPropertyName("shadowOpacity")]
+        public double ShadowOpacity { get; set; } = 0.8;
+
+        [JsonPropertyName("shadowR")]
+        public byte ShadowR { get; set; }
+
+        [JsonPropertyName("shadowG")]
+        public byte ShadowG { get; set; }
+
+        [JsonPropertyName("shadowB")]
+        public byte ShadowB { get; set; }
+
+        public TextStyleConfig() { }
+
+        public TextStyleConfig(double outlineThickness, double shadowBlur, double shadowDepth)
+        {
+            OutlineThickness = outlineThickness;
+            ShadowBlur = shadowBlur;
+            ShadowDepth = shadowDepth;
+        }
+    }
+
     public sealed class TimerColorEntry
     {
         [JsonPropertyName("r")]
@@ -196,7 +281,7 @@ namespace OverlayTimer
         [JsonPropertyName("b")]
         public byte B { get; set; }
 
-        /// <summary>텍스트 외곽선 두께 (픽셀). 0이면 외곽선 없음.</summary>
+        /// <summary>메인(초) 텍스트 외곽선 두께 (픽셀). 0이면 외곽선 없음.</summary>
         [JsonPropertyName("outlineThickness")]
         public double OutlineThickness { get; set; } = 0.0;
 
@@ -212,7 +297,7 @@ namespace OverlayTimer
         [JsonPropertyName("outlineB")]
         public byte OutlineB { get; set; } = 0;
 
-        /// <summary>텍스트 불투명도 (0.0 = 완전 투명, 1.0 = 완전 불투명). 기본값 1.0.</summary>
+        /// <summary>메인(초) 텍스트 불투명도 (0.0 = 완전 투명, 1.0 = 완전 불투명). 기본값 1.0.</summary>
         [JsonPropertyName("opacity")]
         public double Opacity { get; set; } = 1.0;
 
@@ -239,6 +324,14 @@ namespace OverlayTimer
         /// <summary>그림자 색상 B.</summary>
         [JsonPropertyName("shadowB")]
         public byte ShadowB { get; set; } = 0;
+
+        /// <summary>상단 라벨 텍스트(Active/Cooldown 등) 스타일. null이면 기본값 사용.</summary>
+        [JsonPropertyName("labelStyle")]
+        public TextStyleConfig LabelStyle { get; set; } = new();
+
+        /// <summary>하단 디테일 텍스트 스타일. null이면 기본값 사용.</summary>
+        [JsonPropertyName("detailStyle")]
+        public TextStyleConfig DetailStyle { get; set; } = new();
 
         public TimerColorEntry() { }
         public TimerColorEntry(byte r, byte g, byte b) { R = r; G = g; B = b; }

@@ -30,7 +30,13 @@
                   VerticalAlignment="Center">
 
                 <!-- 딤드 배경 원 (시각 전용, 히트테스트 무관) -->
-                <Ellipse Fill="#77000000" IsHitTestVisible="False"/>
+                <Ellipse x:Name="DimmedBackground" Fill="#77000000" IsHitTestVisible="False"/>
+
+                <!-- 링 아웃라인 외곽 (음수 Margin으로 바깥으로 확장) -->
+                <Ellipse x:Name="RingOutlineOuter" IsHitTestVisible="False"/>
+
+                <!-- 링 아웃라인 내곽 (링 안쪽 가장자리) -->
+                <Ellipse x:Name="RingOutlineInner" IsHitTestVisible="False"/>
 
                 <!-- 배경 링 -->
                 <Ellipse x:Name="BackgroundRing" Stroke="#44FFFFFF" StrokeThickness="14"/>

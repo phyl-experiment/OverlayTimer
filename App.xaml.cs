@@ -96,6 +96,8 @@ public partial class App : System.Windows.Application
                     config.Overlays.Timer.Height = height;
                 RestartSaveDebounce();
             };
+            window.ApplyFontScales(config.Timer.LabelFontScale, config.Timer.TimeFontScale, config.Timer.DetailFontScale);
+            window.ApplyRingStyle(config.Timer.RingStyle);
             window.Show();
 
             var overlayTrigger = new OverlayTriggerTimer(window, config.Timer, config.Sound);

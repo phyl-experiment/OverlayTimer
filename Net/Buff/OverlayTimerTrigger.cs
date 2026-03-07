@@ -9,13 +9,45 @@ using DropShadowEffect = System.Windows.Media.Effects.DropShadowEffect;
 
 namespace OverlayTimer.Net
 {
+    public readonly struct TextEffect
+    {
+        public readonly Brush? Stroke;
+        public readonly double StrokeThickness;
+        public readonly double Opacity;
+        public readonly DropShadowEffect? Shadow;
+
+        public TextEffect(Brush? stroke, double strokeThickness, double opacity, DropShadowEffect? shadow)
+        {
+            Stroke = stroke;
+            StrokeThickness = strokeThickness;
+            Opacity = opacity;
+            Shadow = shadow;
+        }
+    }
+
+    public readonly struct PhaseStyle
+    {
+        public readonly Brush Fill;
+        public readonly TextEffect Time;
+        public readonly TextEffect Label;
+        public readonly TextEffect Detail;
+
+        public PhaseStyle(Brush fill, TextEffect time, TextEffect label, TextEffect detail)
+        {
+            Fill = fill;
+            Time = time;
+            Label = label;
+            Detail = detail;
+        }
+    }
+
     public sealed class OverlayTriggerTimer : ITimerTrigger
     {
         private enum Phase { Idle, Active, Cooldown }
 
-        private readonly (Brush fill, Brush? stroke, double thickness, double opacity, DropShadowEffect? shadow) _activeStyle;
-        private readonly (Brush fill, Brush? stroke, double thickness, double opacity, DropShadowEffect? shadow) _cooldownStyle;
-        private readonly (Brush fill, Brush? stroke, double thickness, double opacity, DropShadowEffect? shadow) _readyStyle;
+        private readonly PhaseStyle _activeStyle;
+        private readonly PhaseStyle _cooldownStyle;
+        private readonly PhaseStyle _readyStyle;
 
         private static Brush MakeBrush(byte r, byte g, byte b)
         {
@@ -24,26 +56,46 @@ namespace OverlayTimer.Net
             return brush;
         }
 
-        private static (Brush fill, Brush? stroke, double thickness, double opacity, DropShadowEffect? shadow) MakeStyle(TimerColorEntry entry)
+        private static TextEffect MakeTextEffect(TextStyleConfig cfg)
         {
-            var fill = MakeBrush(entry.R, entry.G, entry.B);
-            Brush? stroke = entry.OutlineThickness > 0 ? MakeBrush(entry.OutlineR, entry.OutlineG, entry.OutlineB) : null;
+            Brush? stroke = cfg.OutlineThickness > 0 ? MakeBrush(cfg.OutlineR, cfg.OutlineG, cfg.OutlineB) : null;
 
             DropShadowEffect? shadow = null;
-            if (entry.ShadowBlur > 0 || entry.ShadowDepth > 0)
+            if (cfg.ShadowBlur > 0 || cfg.ShadowDepth > 0)
             {
                 shadow = new DropShadowEffect
                 {
-                    Color = Color.FromRgb(entry.ShadowR, entry.ShadowG, entry.ShadowB),
-                    BlurRadius = entry.ShadowBlur,
-                    ShadowDepth = entry.ShadowDepth,
-                    Opacity = Math.Clamp(entry.ShadowOpacity, 0.0, 1.0),
+                    Color = Color.FromRgb(cfg.ShadowR, cfg.ShadowG, cfg.ShadowB),
+                    BlurRadius = cfg.ShadowBlur,
+                    ShadowDepth = cfg.ShadowDepth,
+                    Opacity = Math.Clamp(cfg.ShadowOpacity, 0.0, 1.0),
                     Direction = 315
                 };
                 shadow.Freeze();
             }
 
-            return (fill, stroke, entry.OutlineThickness, Math.Clamp(entry.Opacity, 0.0, 1.0), shadow);
+            return new TextEffect(stroke, cfg.OutlineThickness, Math.Clamp(cfg.Opacity, 0.0, 1.0), shadow);
+        }
+
+        private static PhaseStyle MakeStyle(TimerColorEntry entry)
+        {
+            var fill = MakeBrush(entry.R, entry.G, entry.B);
+
+            // 메인(초) 텍스트 — 기존 TimerColorEntry 필드에서 직접 생성
+            var timeCfg = new TextStyleConfig
+            {
+                OutlineThickness = entry.OutlineThickness,
+                OutlineR = entry.OutlineR, OutlineG = entry.OutlineG, OutlineB = entry.OutlineB,
+                Opacity = entry.Opacity,
+                ShadowBlur = entry.ShadowBlur, ShadowDepth = entry.ShadowDepth,
+                ShadowOpacity = entry.ShadowOpacity,
+                ShadowR = entry.ShadowR, ShadowG = entry.ShadowG, ShadowB = entry.ShadowB,
+            };
+
+            return new PhaseStyle(fill,
+                MakeTextEffect(timeCfg),
+                MakeTextEffect(entry.LabelStyle),
+                MakeTextEffect(entry.DetailStyle));
         }
 
         private readonly Dispatcher _ui;
@@ -173,7 +225,7 @@ namespace OverlayTimer.Net
             };
             _window.SetPhaseLabel(label);
             _window.SetDetail(detail);
-            _window.SetPhaseColor(style.fill, style.stroke, style.thickness, style.opacity, style.shadow);
+            _window.SetPhaseColor(style);
         }
 
         private void UpdateUi()

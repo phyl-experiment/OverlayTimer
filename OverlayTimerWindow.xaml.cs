@@ -42,6 +42,10 @@ namespace OverlayTimer
         private const double BasePhaseLabelFont = 15.0;
         private const double BaseTimeFont = 48.0;
         private const double BaseDetailFont = 11.0;
+        private double _ringOutlineThickness = 0;
+        private double _labelFontScale = 1.0;
+        private double _timeFontScale = 1.0;
+        private double _detailFontScale = 1.0;
 
         internal static Action? OnF9Press;
 
@@ -347,17 +351,61 @@ namespace OverlayTimer
         public void SetDetail(string text) => DetailText.Text = text;
         public void SetTime(string text) => TimeText.Text = text;
 
-        public void SetPhaseColor(Brush fill, Brush? stroke = null, double strokeThickness = 0.0,
-                                   double opacity = 1.0, DropShadowEffect? shadow = null)
+        public void SetPhaseColor(Net.PhaseStyle style)
         {
-            ProgressArc.Stroke = fill;
-            PhaseLabelText.Foreground = fill;
-            TimeText.Foreground = fill;
-            TimeText.Stroke = stroke;
-            TimeText.StrokeThickness = strokeThickness;
-            TimeText.Opacity = opacity;
-            TimeText.Effect = shadow;
-            DetailText.Foreground = fill;
+            ProgressArc.Stroke = style.Fill;
+
+            PhaseLabelText.Foreground = style.Fill;
+            PhaseLabelText.Stroke = style.Label.Stroke;
+            PhaseLabelText.StrokeThickness = style.Label.StrokeThickness;
+            PhaseLabelText.Opacity = style.Label.Opacity;
+            PhaseLabelText.Effect = style.Label.Shadow;
+
+            TimeText.Foreground = style.Fill;
+            TimeText.Stroke = style.Time.Stroke;
+            TimeText.StrokeThickness = style.Time.StrokeThickness;
+            TimeText.Opacity = style.Time.Opacity;
+            TimeText.Effect = style.Time.Shadow;
+
+            DetailText.Foreground = style.Fill;
+            DetailText.Stroke = style.Detail.Stroke;
+            DetailText.StrokeThickness = style.Detail.StrokeThickness;
+            DetailText.Opacity = style.Detail.Opacity;
+            DetailText.Effect = style.Detail.Shadow;
+        }
+
+        public void ApplyFontScales(double labelScale, double timeScale, double detailScale)
+        {
+            _labelFontScale = Math.Max(0.1, labelScale);
+            _timeFontScale = Math.Max(0.1, timeScale);
+            _detailFontScale = Math.Max(0.1, detailScale);
+            UpdateDynamicLayout();
+        }
+
+        public void ApplyRingStyle(RingStyleConfig cfg)
+        {
+            // 아웃라인 (안쪽 + 바깥쪽 두 개의 Ellipse)
+            if (cfg.OutlineThickness > 0)
+            {
+                var brush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(
+                    (byte)(Math.Clamp(cfg.OutlineOpacity, 0.0, 1.0) * 255),
+                    cfg.OutlineR, cfg.OutlineG, cfg.OutlineB));
+                brush.Freeze();
+
+                RingOutlineOuter.Stroke = brush;
+                RingOutlineInner.Stroke = brush;
+                RingOutlineOuter.Visibility = Visibility.Visible;
+                RingOutlineInner.Visibility = Visibility.Visible;
+                _ringOutlineThickness = cfg.OutlineThickness;
+            }
+            else
+            {
+                RingOutlineOuter.Visibility = Visibility.Collapsed;
+                RingOutlineInner.Visibility = Visibility.Collapsed;
+                _ringOutlineThickness = 0;
+            }
+
+            UpdateDynamicLayout();
         }
 
         public void SetProgress(double progress01)
@@ -380,13 +428,26 @@ namespace OverlayTimer
             RingCanvas.Height = ringSize;
 
             double scale = ringSize / BaseRingSize;
-            PhaseLabelText.FontSize = Math.Clamp(BasePhaseLabelFont * scale, 9.0, 28.0);
-            TimeText.FontSize = Math.Clamp(BaseTimeFont * scale, 18.0, 96.0);
-            DetailText.FontSize = Math.Clamp(BaseDetailFont * scale, 7.0, 20.0);
+            PhaseLabelText.FontSize = Math.Clamp(BasePhaseLabelFont * scale * _labelFontScale, 5.0, 48.0);
+            TimeText.FontSize = Math.Clamp(BaseTimeFont * scale * _timeFontScale, 12.0, 144.0);
+            DetailText.FontSize = Math.Clamp(BaseDetailFont * scale * _detailFontScale, 5.0, 36.0);
 
             double stroke = Math.Clamp(BaseRingStroke * scale, 5.0, 32.0);
             BackgroundRing.StrokeThickness = stroke;
             ProgressArc.StrokeThickness = stroke;
+
+            if (_ringOutlineThickness > 0)
+            {
+                double ot = Math.Clamp(_ringOutlineThickness * scale, 1.0, 8.0);
+
+                // 바깥쪽 아웃라인: 음수 Margin으로 Grid 밖으로 확장
+                RingOutlineOuter.StrokeThickness = ot;
+                RingOutlineOuter.Margin = new Thickness(-ot);
+
+                // 안쪽 아웃라인: 링 안쪽 가장자리 바로 안에 위치 (BackgroundRing과 겹치지 않도록)
+                RingOutlineInner.StrokeThickness = ot;
+                RingOutlineInner.Margin = new Thickness(stroke);
+            }
 
             DrawProgressArc(_lastProgress01);
         }
