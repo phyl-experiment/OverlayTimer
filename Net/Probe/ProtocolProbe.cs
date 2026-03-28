@@ -32,7 +32,9 @@ namespace OverlayTimer.Net
             ProtocolConfig protocol,
             PacketTypesConfig types,
             int markerRadius = DefaultMarkerRadius,
-            int typeRadius   = DefaultTypeRadius)
+            int typeRadius   = DefaultTypeRadius,
+            bool includeConfirmedMarkers = false,
+            bool includeConfirmedTypes   = false)
         {
             if (rawData == null || rawData.Length < 18)
                 return null;
@@ -40,20 +42,27 @@ namespace OverlayTimer.Net
             byte[] curStart = protocol.StartMarkerBytes;
             byte[] curEnd   = protocol.EndMarkerBytes;
 
+            // confirmed 마커는 radius=0 으로 강제 (현재 값만 검증)
+            int effectiveMarkerRadius = (protocol.StartMarker.Confirmed && protocol.EndMarker.Confirmed && !includeConfirmedMarkers)
+                ? 0
+                : markerRadius;
+
             // 1단계: 마커 탐색
-            var (bestStart, bestEnd, score) = TryDiscoverMarkers(rawData, curStart, curEnd, markerRadius);
+            var (bestStart, bestEnd, score) = TryDiscoverMarkers(rawData, curStart, curEnd, effectiveMarkerRadius);
             if (bestStart == null || bestEnd == null || score < MinFrameScore)
                 return null;
 
             // 2단계: 발견된 마커로 패킷 목록 추출
             var packets = ExtractPackets(rawData, bestStart, bestEnd);
 
-            // 3단계: 패킷 타입 탐색
-            int? newBuffStart  = TryFindBuffStart(packets, types.BuffStart, typeRadius);
-            int? newBuffEnd    = TryFindBuffEnd(packets, types.BuffEnd, newBuffStart, typeRadius);
-            int? newEnterWorld = TryFindEnterWorld(packets, types.EnterWorld, typeRadius);
-            int? newDpsAttack  = TryFindDpsAttack(packets, types.DpsAttack, typeRadius);
-            int? newDpsDamage  = TryFindDpsDamage(packets, types.DpsDamage, typeRadius);
+            // 3단계: 패킷 타입 탐색 — confirmed 값은 스킵
+            int? newBuffStart  = (types.BuffStart.Confirmed  && !includeConfirmedTypes) ? null : TryFindBuffStart(packets, types.BuffStart.Value, typeRadius);
+            int? newBuffEnd    = (types.BuffEnd.Confirmed    && !includeConfirmedTypes) ? null : TryFindBuffEnd(packets, types.BuffEnd.Value, newBuffStart, typeRadius);
+            // enterWorld is intentionally excluded from confirmed re-probe.
+            // Its parser is permissive enough that parse misses can cause noisy re-discovery.
+            int? newEnterWorld = types.EnterWorld.Confirmed ? null : TryFindEnterWorld(packets, types.EnterWorld.Value, typeRadius);
+            int? newDpsAttack  = (types.DpsAttack.Confirmed  && !includeConfirmedTypes) ? null : TryFindDpsAttack(packets, types.DpsAttack.Value, typeRadius);
+            int? newDpsDamage  = (types.DpsDamage.Confirmed  && !includeConfirmedTypes) ? null : TryFindDpsDamage(packets, types.DpsDamage.Value, typeRadius);
 
             bool markerChanged = !bestStart.AsSpan().SequenceEqual(curStart)
                               || !bestEnd.AsSpan().SequenceEqual(curEnd);

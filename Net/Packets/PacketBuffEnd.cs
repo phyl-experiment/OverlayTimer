@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 
 namespace OverlayTimer.Net
 {
-    // dataType 100055
+    // dataType 100056
     public readonly struct PacketBuffEnd : IPacketParser<PacketBuffEnd>
     {
         public ulong UserId { get; }  // offset 0x00

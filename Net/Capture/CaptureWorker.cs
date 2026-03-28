@@ -18,13 +18,21 @@ public sealed class CaptureWorker
     // ------------------------------------------------------------------
     private const int  ProbeBufferMax        = 128 * 1024; // 128KB 보존
     private const int  ProbeThreshold        =  64 * 1024; // 64KB 수신 후 첫 프로브
-    private const int  MaxProbeAttempts      = 3;
-    private const int  MinFramesForTypeProbe = 50;          // condition②: 마커 정상이나 타입 미인식
+    private const long ProbeThresholdCap     =   1 * 1024 * 1024; // 1MB 상한 — 이후 같은 간격 반복
+    private const int  MinFramesForTypeProbe = 10;          // condition②: 마커 정상이나 타입 미인식
+
+    private const int  ConfirmedMarkerReprobeMissThreshold = 2;
+    private const int  ConfirmedTypeReprobeMissThreshold   = 3;
 
     private readonly List<byte> _probeBuffer  = new();
     private long _totalS2cBytes       = 0;
     private int  _probeAttemptCount   = 0;
     private long _nextProbeThreshold  = ProbeThreshold;
+    private int _confirmedMarkerMissCount;
+    private int _confirmedBuffStartMissCount;
+    private int _confirmedBuffEndMissCount;
+    private int _confirmedDpsAttackMissCount;
+    private int _confirmedDpsDamageMissCount;
 
     /// <summary>
     /// 새 프로토콜 값이 발견되면 호출된다. UI 스레드에서 구독자가 AppConfig 를 갱신하고 재시작한다.
@@ -32,10 +40,19 @@ public sealed class CaptureWorker
     public Action<ProbeResult>? OnProbeSuccess { get; set; }
 
     /// <summary>
-    /// condition②(마커 정상·타입 미인식) 판별에 사용.
+    /// 인식된 패킷 수 (확인용).
     /// SnifferService 가 PacketHandler.RecognizedPacketCount 를 연결한다.
     /// </summary>
     public Func<int>? GetRecognizedPackets { get; set; }
+
+    /// <summary>
+    /// 인식된 dataType 집합을 반환한다.
+    /// SnifferService 가 PacketHandler.RecognizedDataTypes 를 연결한다.
+    /// </summary>
+    public Func<IReadOnlySet<int>>? GetRecognizedDataTypes { get; set; }
+
+    /// <summary>디버그 오버레이에 probe 상태를 표시하기 위한 참조.</summary>
+    public OverlayTimer.DebugInfo? DebugInfo { get; set; }
 
     public CaptureWorker(
         PacketStreamParser streamParser,
@@ -107,34 +124,106 @@ public sealed class CaptureWorker
     // Failure detection & probe trigger
     // ------------------------------------------------------------------
 
+    /// <summary>
+    /// unconfirmed 타입 중 아직 인식되지 않은 것이 있는지 확인.
+    /// </summary>
+    public bool HasUnrecognizedUnconfirmedTypes()
+    {
+        return GetUnrecognizedUnconfirmedNames().Count > 0;
+    }
+
+    /// <summary>
+    /// unconfirmed이면서 미인식인 타입 이름 목록을 반환한다.
+    /// </summary>
+    public List<string> GetUnrecognizedUnconfirmedNames()
+    {
+        var result = new List<string>();
+        var recognized = GetRecognizedDataTypes?.Invoke();
+        if (recognized == null) return result;
+
+        if (!_typesConfig.BuffStart.Confirmed  && !recognized.Contains(_typesConfig.BuffStart.Value))  result.Add("buffStart");
+        if (!_typesConfig.BuffEnd.Confirmed    && !recognized.Contains(_typesConfig.BuffEnd.Value))    result.Add("buffEnd");
+        if (!_typesConfig.EnterWorld.Confirmed && !recognized.Contains(_typesConfig.EnterWorld.Value)) result.Add("enterWorld");
+        if (!_typesConfig.DpsAttack.Confirmed  && !recognized.Contains(_typesConfig.DpsAttack.Value))  result.Add("dpsAttack");
+        if (!_typesConfig.DpsDamage.Confirmed  && !recognized.Contains(_typesConfig.DpsDamage.Value))  result.Add("dpsDamage");
+
+        return result;
+    }
+
     private void TryTriggerProbe()
     {
-        if (_probeAttemptCount >= MaxProbeAttempts) return;
-        if (_totalS2cBytes < _nextProbeThreshold)   return;
+        if (_totalS2cBytes < _nextProbeThreshold) return;
 
         int framesFound = _streamParser.FramesFound;
         int recognized  = GetRecognizedPackets?.Invoke() ?? 0;
 
         // condition①: 마커 자체를 인식 못함 → 풀 프로브
         bool fullProbe = framesFound == 0;
-        // condition②: 마커는 인식하나 패킷 타입을 전혀 인식 못함 → 타입만 프로브
-        bool typeProbe = !fullProbe && framesFound >= MinFramesForTypeProbe && recognized == 0;
+        bool includeConfirmedMarkers = false;
+        bool includeConfirmedTypes = false;
+        bool typeProbe = false;
+        List<string>? unrecognizedNames = null;
+        List<string>? confirmedReprobeNames = null;
 
-        if (!fullProbe && !typeProbe) return;
+        if (fullProbe)
+        {
+            includeConfirmedMarkers = ShouldForceConfirmedMarkerProbe();
+            includeConfirmedTypes = includeConfirmedMarkers;
+            ResetConfirmedTypeMissCounters();
+        }
+        else
+        {
+            _confirmedMarkerMissCount = 0;
+            unrecognizedNames = GetUnrecognizedUnconfirmedNames();
+            confirmedReprobeNames = framesFound >= MinFramesForTypeProbe
+                ? GetReprobeEligibleConfirmedNames()
+                : null;
+            includeConfirmedTypes = confirmedReprobeNames is { Count: > 0 };
+            typeProbe = framesFound >= MinFramesForTypeProbe &&
+                ((unrecognizedNames is { Count: > 0 }) || includeConfirmedTypes);
+        }
+
+        if (!fullProbe && !typeProbe)
+        {
+            DebugInfo?.SetProbeStatus("");
+            return;
+        }
+
+        // 디버그 표시: probe 대상
+        var targets = fullProbe
+            ? (includeConfirmedMarkers ? "markers+types (forced)" : "markers+types")
+            : BuildTypeProbeTargetLabel(unrecognizedNames!, confirmedReprobeNames);
+        DebugInfo?.SetProbeStatus($"Probing: {targets}");
 
         _probeAttemptCount++;
-        _nextProbeThreshold *= 2;
+        // 임계치 증가 (상한 도달 시 같은 간격 반복 → 무한 재시도 가능)
+        if (_nextProbeThreshold < ProbeThresholdCap)
+            _nextProbeThreshold *= 2;
+        else
+            _nextProbeThreshold += ProbeThresholdCap;
 
         var snapshot = _probeBuffer.ToArray();
-        string mode  = fullProbe ? "full" : "type-only";
+        string mode  = fullProbe
+            ? (includeConfirmedMarkers ? "full-forced" : "full")
+            : (includeConfirmedTypes ? "type-reprobe" : "type-only");
         LogHelper.Write(
-            $"[Probe] Attempt {_probeAttemptCount}/{MaxProbeAttempts} ({mode}): " +
+            $"[Probe] Attempt {_probeAttemptCount} ({mode}): " +
             $"totalS2c={_totalS2cBytes} probeLen={snapshot.Length} " +
             $"frames={framesFound} recognized={recognized}");
 
         var result = fullProbe
-            ? ProtocolProbe.TryDiscover(snapshot, _protocolConfig, _typesConfig)
-            : ProtocolProbe.TryDiscover(snapshot, _protocolConfig, _typesConfig, markerRadius: 0);
+            ? ProtocolProbe.TryDiscover(
+                snapshot,
+                _protocolConfig,
+                _typesConfig,
+                includeConfirmedMarkers: includeConfirmedMarkers,
+                includeConfirmedTypes: includeConfirmedTypes)
+            : ProtocolProbe.TryDiscover(
+                snapshot,
+                _protocolConfig,
+                _typesConfig,
+                markerRadius: 0,
+                includeConfirmedTypes: includeConfirmedTypes);
 
         if (result == null)
         {
@@ -153,6 +242,70 @@ public sealed class CaptureWorker
             $" dpsDamage={result.NewDpsDamage}");
 
         OnProbeSuccess?.Invoke(result);
+    }
+
+    private bool ShouldForceConfirmedMarkerProbe()
+    {
+        if (!_protocolConfig.StartMarker.Confirmed || !_protocolConfig.EndMarker.Confirmed)
+        {
+            _confirmedMarkerMissCount = 0;
+            return false;
+        }
+
+        _confirmedMarkerMissCount++;
+        return _confirmedMarkerMissCount >= ConfirmedMarkerReprobeMissThreshold;
+    }
+
+    private List<string> GetReprobeEligibleConfirmedNames()
+    {
+        var result = new List<string>();
+        var recognized = GetRecognizedDataTypes?.Invoke();
+        if (recognized == null)
+            return result;
+
+        _confirmedBuffStartMissCount = UpdateConfirmedTypeMissCount(_typesConfig.BuffStart, recognized, _confirmedBuffStartMissCount);
+        _confirmedBuffEndMissCount = UpdateConfirmedTypeMissCount(_typesConfig.BuffEnd, recognized, _confirmedBuffEndMissCount);
+        _confirmedDpsAttackMissCount = UpdateConfirmedTypeMissCount(_typesConfig.DpsAttack, recognized, _confirmedDpsAttackMissCount);
+        _confirmedDpsDamageMissCount = UpdateConfirmedTypeMissCount(_typesConfig.DpsDamage, recognized, _confirmedDpsDamageMissCount);
+
+        if (_confirmedBuffStartMissCount >= ConfirmedTypeReprobeMissThreshold) result.Add("buffStart");
+        if (_confirmedBuffEndMissCount >= ConfirmedTypeReprobeMissThreshold) result.Add("buffEnd");
+        if (_confirmedDpsAttackMissCount >= ConfirmedTypeReprobeMissThreshold) result.Add("dpsAttack");
+        if (_confirmedDpsDamageMissCount >= ConfirmedTypeReprobeMissThreshold) result.Add("dpsDamage");
+
+        return result;
+    }
+
+    private static int UpdateConfirmedTypeMissCount(
+        Confirmable<int> config,
+        IReadOnlySet<int> recognized,
+        int current)
+    {
+        if (!config.Confirmed || recognized.Contains(config.Value))
+            return 0;
+
+        return current + 1;
+    }
+
+    private void ResetConfirmedTypeMissCounters()
+    {
+        _confirmedBuffStartMissCount = 0;
+        _confirmedBuffEndMissCount = 0;
+        _confirmedDpsAttackMissCount = 0;
+        _confirmedDpsDamageMissCount = 0;
+    }
+
+    private static string BuildTypeProbeTargetLabel(
+        List<string> unrecognizedNames,
+        List<string>? confirmedReprobeNames)
+    {
+        if (confirmedReprobeNames is not { Count: > 0 })
+            return string.Join(", ", unrecognizedNames);
+
+        if (unrecognizedNames.Count == 0)
+            return $"confirmed-reprobe: {string.Join(", ", confirmedReprobeNames)}";
+
+        return $"{string.Join(", ", unrecognizedNames)} + confirmed-reprobe: {string.Join(", ", confirmedReprobeNames)}";
     }
 
     private static string FormatMarker(byte[]? marker)

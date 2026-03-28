@@ -19,8 +19,8 @@ public class ProtocolProbeTests
     private static readonly byte[] BaseStart = ParseHex("80 4E 00 00 00 00 00 00 00");
     private static readonly byte[] BaseEnd   = ParseHex("12 4F 00 00 00 00 00 00 00");
 
-    private const int CurBuffStart  = 100054;
-    private const int CurBuffEnd    = 100055;
+    private const int CurBuffStart  = 100055;
+    private const int CurBuffEnd    = 100056;
     private const int CurEnterWorld = 101059;
     private const int CurDpsAttack  = 20389;
     private const int CurDpsDamage  = 20897;
@@ -119,11 +119,13 @@ public class ProtocolProbeTests
         return result;
     }
 
-    private static ProtocolConfig MakeProtocolConfig(byte[] start, byte[] end) =>
+    private static ProtocolConfig MakeProtocolConfig(
+        byte[] start, byte[] end,
+        bool startConfirmed = false, bool endConfirmed = false) =>
         new()
         {
-            StartMarker = BitConverter.ToString(start).Replace("-", " "),
-            EndMarker   = BitConverter.ToString(end).Replace("-", " ")
+            StartMarker = new Confirmable<string>(BitConverter.ToString(start).Replace("-", " "), startConfirmed),
+            EndMarker   = new Confirmable<string>(BitConverter.ToString(end).Replace("-", " "), endConfirmed)
         };
 
     private static PacketTypesConfig MakeTypesConfig(
@@ -131,14 +133,15 @@ public class ProtocolProbeTests
         int buffEnd    = CurBuffEnd,
         int enterWorld = CurEnterWorld,
         int dpsAttack  = CurDpsAttack,
-        int dpsDamage  = CurDpsDamage) =>
+        int dpsDamage  = CurDpsDamage,
+        bool allConfirmed = false) =>
         new()
         {
-            BuffStart  = buffStart,
-            BuffEnd    = buffEnd,
-            EnterWorld = enterWorld,
-            DpsAttack  = dpsAttack,
-            DpsDamage  = dpsDamage
+            BuffStart  = new Confirmable<int>(buffStart, allConfirmed),
+            BuffEnd    = new Confirmable<int>(buffEnd, allConfirmed),
+            EnterWorld = new Confirmable<int>(enterWorld, allConfirmed),
+            DpsAttack  = new Confirmable<int>(dpsAttack, allConfirmed),
+            DpsDamage  = new Confirmable<int>(dpsDamage, allConfirmed)
         };
 
     private static byte[] ParseHex(string hex)
@@ -677,5 +680,165 @@ public class ProtocolProbeTests
         var wrong = ShiftMarker(BaseStart, 50);
         var packets = ProtocolProbe.ExtractPackets(data, wrong, BaseEnd);
         Assert.Empty(packets);
+    }
+
+    // ------------------------------------------------------------------
+    // Confirmed 플래그 테스트
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void TryDiscover_ConfirmedMarkersNotProbed_WhenShifted()
+    {
+        // 마커가 실제로 shift 되었지만, confirmed=true 이므로 radius=0 강제 → 마커 탐색 실패 → null
+        int delta = 5;
+        var newStart = ShiftMarker(BaseStart, delta);
+        var newEnd   = ShiftMarker(BaseEnd, delta);
+
+        var data = new StreamBuilder()
+            .AddFrame(newStart, newEnd, (CurBuffStart, MakeBuffStartPayload()))
+            .AddFrame(newStart, newEnd, (CurBuffStart, MakeBuffStartPayload()))
+            .Build();
+
+        var result = ProtocolProbe.TryDiscover(data,
+            MakeProtocolConfig(BaseStart, BaseEnd, startConfirmed: true, endConfirmed: true),
+            MakeTypesConfig(),
+            markerRadius: 128,
+            typeRadius: 10);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void TryDiscover_ConfirmedTypesNotProbed()
+    {
+        // 타입이 실제로 shift 되었지만, confirmed=true 이므로 probe 스킵 → null
+        int delta = 10;
+        int newBuffStart = CurBuffStart + delta;
+
+        var data = new StreamBuilder()
+            .AddFrame(BaseStart, BaseEnd,
+                (newBuffStart, MakeBuffStartPayload()),
+                (newBuffStart, MakeBuffStartPayload()))
+            .AddFrame(BaseStart, BaseEnd,
+                (newBuffStart, MakeBuffStartPayload()))
+            .Build();
+
+        var result = ProtocolProbe.TryDiscover(data,
+            MakeProtocolConfig(BaseStart, BaseEnd),
+            MakeTypesConfig(allConfirmed: true),
+            markerRadius: 5,
+            typeRadius: 50);
+
+        // 마커 변경 없고, 타입은 모두 confirmed → null
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void TryDiscover_ConfirmedMarkersCanBeForced()
+    {
+        int delta = 5;
+        var newStart = ShiftMarker(BaseStart, delta);
+        var newEnd   = ShiftMarker(BaseEnd, delta);
+
+        var data = new StreamBuilder()
+            .AddFrame(newStart, newEnd, (CurBuffStart, MakeBuffStartPayload()))
+            .AddFrame(newStart, newEnd, (CurBuffStart, MakeBuffStartPayload()))
+            .Build();
+
+        var result = ProtocolProbe.TryDiscover(data,
+            MakeProtocolConfig(BaseStart, BaseEnd, startConfirmed: true, endConfirmed: true),
+            MakeTypesConfig(allConfirmed: true),
+            markerRadius: 128,
+            typeRadius: 10,
+            includeConfirmedMarkers: true,
+            includeConfirmedTypes: true);
+
+        Assert.NotNull(result);
+        Assert.Equal(newStart, result.NewStartMarker);
+        Assert.Equal(newEnd, result.NewEndMarker);
+    }
+
+    [Fact]
+    public void TryDiscover_ConfirmedTypesCanBeForced_ExceptEnterWorld()
+    {
+        int delta = 10;
+        int newBuffStart  = CurBuffStart + delta;
+        int newBuffEnd    = CurBuffEnd + delta;
+        int newEnterWorld = CurEnterWorld + delta;
+        int newDpsAttack  = CurDpsAttack + delta;
+        int newDpsDamage  = CurDpsDamage + delta;
+
+        var data = new StreamBuilder()
+            .AddFrame(BaseStart, BaseEnd,
+                (newBuffStart,  MakeBuffStartPayload()),
+                (newBuffEnd,    MakeBuffEndPayload()),
+                (newEnterWorld, MakeEnterWorldPayload()),
+                (newDpsAttack,  MakeDpsAttackPayload()),
+                (newDpsDamage,  MakeDpsDamagePayload()))
+            .AddFrame(BaseStart, BaseEnd,
+                (newBuffStart,  MakeBuffStartPayload()),
+                (newDpsAttack,  MakeDpsAttackPayload()),
+                (newDpsDamage,  MakeDpsDamagePayload()))
+            .Build();
+
+        var result = ProtocolProbe.TryDiscover(data,
+            MakeProtocolConfig(BaseStart, BaseEnd),
+            MakeTypesConfig(allConfirmed: true),
+            markerRadius: 5,
+            typeRadius: 50,
+            includeConfirmedTypes: true);
+
+        Assert.NotNull(result);
+        Assert.Equal(newBuffStart, result.NewBuffStart);
+        Assert.Equal(newBuffEnd, result.NewBuffEnd);
+        Assert.Null(result.NewEnterWorld);
+        Assert.Equal(newDpsAttack, result.NewDpsAttack);
+        Assert.Equal(newDpsDamage, result.NewDpsDamage);
+    }
+
+    [Fact]
+    public void TryDiscover_MixedConfirmed_OnlyProbesUnconfirmed()
+    {
+        int delta = 8;
+        int newBuffStart  = CurBuffStart  + delta;
+        int newBuffEnd    = newBuffStart + 1;
+        int newDpsAttack  = CurDpsAttack  + delta;
+        int newDpsDamage  = CurDpsDamage  + delta;
+
+        var data = new StreamBuilder()
+            .AddFrame(BaseStart, BaseEnd,
+                (newBuffStart,  MakeBuffStartPayload()),
+                (newBuffEnd,    MakeBuffEndPayload()),
+                (CurEnterWorld, MakeEnterWorldPayload()),
+                (newDpsAttack,  MakeDpsAttackPayload()),
+                (newDpsDamage,  MakeDpsDamagePayload()))
+            .AddFrame(BaseStart, BaseEnd,
+                (newBuffStart,  MakeBuffStartPayload()),
+                (newDpsAttack,  MakeDpsAttackPayload()),
+                (newDpsDamage,  MakeDpsDamagePayload()))
+            .Build();
+
+        // enterWorld만 confirmed, 나머지는 unconfirmed
+        var types = new PacketTypesConfig
+        {
+            BuffStart  = new Confirmable<int>(CurBuffStart, confirmed: false),
+            BuffEnd    = new Confirmable<int>(CurBuffEnd, confirmed: false),
+            EnterWorld = new Confirmable<int>(CurEnterWorld, confirmed: true),
+            DpsAttack  = new Confirmable<int>(CurDpsAttack, confirmed: false),
+            DpsDamage  = new Confirmable<int>(CurDpsDamage, confirmed: false),
+        };
+
+        var result = ProtocolProbe.TryDiscover(data,
+            MakeProtocolConfig(BaseStart, BaseEnd),
+            types,
+            markerRadius: 5,
+            typeRadius: 50);
+
+        Assert.NotNull(result);
+        Assert.Equal(newBuffStart, result.NewBuffStart);
+        Assert.Equal(newBuffEnd,   result.NewBuffEnd);
+        Assert.Null(result.NewEnterWorld); // confirmed → 스킵
+        Assert.Equal(newDpsAttack, result.NewDpsAttack);
+        Assert.Equal(newDpsDamage, result.NewDpsDamage);
     }
 }

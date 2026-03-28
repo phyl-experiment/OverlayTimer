@@ -6,8 +6,8 @@ namespace OverlayTimer.Tests;
 
 public class PacketHandlerSelfIdTests
 {
-    private const int BuffStartType = 100054;
-    private const int BuffEndType = 100055;
+    private const int BuffStartType = 100055;
+    private const int BuffEndType = 100056;
     private const int EnterWorldType = 101059;
     private const int DpsAttackType = 20389;
     private const int DpsDamageType = 20897;

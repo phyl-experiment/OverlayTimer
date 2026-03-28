@@ -10,15 +10,15 @@
 - 타입별 증가분은 일정하지 않음
 
 ## 현재 값 (기준점)
-| 항목 | 현재 값 |
-|------|---------|
-| StartMarker | `80 4E 00 00 00 00 00 00 00` (앞 2바이트 = LE uint16) |
-| EndMarker | `12 4F 00 00 00 00 00 00 00` |
-| buffStart | 100054 |
-| buffEnd | 100055 |
-| enterWorld | 101059 |
-| dpsAttack | 20389 |
-| dpsDamage | 20897 |
+| 항목 | 현재 값 | confirmed |
+|------|---------|-----------|
+| StartMarker | `82 4E 00 00 00 00 00 00 00` (앞 2바이트 = LE uint16) | ✅ |
+| EndMarker | `18 4F 00 00 00 00 00 00 00` | ✅ |
+| buffStart | 100055 | ✅ |
+| buffEnd | 100056 | ✅ |
+| enterWorld | 101072 | ✅ |
+| dpsAttack | 20389 | ❌ |
+| dpsDamage | 20897 | ❌ |
 
 ---
 
@@ -30,13 +30,27 @@ CaptureWorker (S2C 스트림 수신)
   │  _totalS2cBytes, _framesFound 카운터
   │
   ├── 조건①: _totalS2cBytes >= 64KB && _framesFound == 0
-  │     → 마커 탐색: ProtocolProbe.TryDiscover(probeBuffer, protocol, types)
+  │     → 풀 프로브 (마커 + 타입): ProtocolProbe.TryDiscover(probeBuffer, protocol, types)
   │
-  └── 조건②: _framesFound >= 50 && _recognizedPackets == 0
-        → 타입 탐색: ProtocolProbe.TryDiscoverTypes(sampleFrames, types)
+  └── 조건②: _framesFound >= 10 && unconfirmed 타입 중 하나라도 미인식
+        → 타입 프로브 (markerRadius=0): ProtocolProbe.TryDiscover(... markerRadius: 0)
+
+confirmed 플래그:
+  - config.json의 각 protocol/packetTypes 값은 { "confirmed": bool, "value": ... } 형식
+  - confirmed=true: 프로브 대상에서 제외 (마커는 radius=0 강제, 타입은 스킵)
+  - confirmed=false: 자동 탐색 대상
+
+재시도 정책:
+  - MaxProbeAttempts 제한 없음 (미인식 unconfirmed 타입이 있는 한 계속 재시도)
+  - 임계치: 64KB → 128KB → ... → 1MB (이후 1MB 간격 반복)
+  - 성공 시: OnProbeSuccess → App.xaml.cs: AppConfig 갱신 → sniffer 재시작
+  - 실패 시 (null): 다음 임계치까지 대기 후 재시도
 
 발견 성공 → OnProbeSuccess 콜백
-  → App.xaml.cs: AppConfig 갱신 → config.json 저장 → CaptureWorker 재시작
+  → App.xaml.cs: AppConfig 갱신 (메모리만) → sniffer 재시작
+  → 확인 대기: RecognizedPacketCount >= 3 이내 120초
+  → 확인 성공: config.json 저장
+  → 타임아웃: 이전 config으로 롤백 → sniffer 재시작
 ```
 
 ---
@@ -120,6 +134,15 @@ public sealed class ProbeResult {
 | 10 | 프레임 경계 잘림 (partial) | 크래시 없음, graceful |
 | 11 | buffStart+buffEnd 동시 탐색 | 두 타입 모두 정확 |
 | 12 | 빈 데이터 [] | null 반환 |
+| 13 | confirmed 마커 shift됨 | radius=0 강제 → null 반환 |
+| 14 | 모든 타입 confirmed | 타입 프로브 스킵 → null 반환 |
+| 15 | mixed confirmed (일부만) | unconfirmed만 탐색, confirmed는 null |
+| 16 | HasUnrecognizedUnconfirmedTypes — 전부 confirmed | false |
+| 17 | HasUnrecognizedUnconfirmedTypes — 전부 미인식 | true |
+| 18 | HasUnrecognizedUnconfirmedTypes — 전부 인식됨 | false |
+| 19 | HasUnrecognizedUnconfirmedTypes — 혼합 (일부만 인식) | true |
+| 20 | CaptureWorker condition② 트리거 | unconfirmed 미인식 시 probe 발동 |
+| 21 | CaptureWorker condition② 미트리거 | unconfirmed 전부 인식 시 probe 안 발동 |
 
 ---
 

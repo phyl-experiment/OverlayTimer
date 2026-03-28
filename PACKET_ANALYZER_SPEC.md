@@ -129,8 +129,8 @@ IPacketParser\<T\>는 변경 없이 유지. IPacketDescriptor는 PacketAnalyzer 
     "endMarker":   "12 4F 00 00 00 00 00 00 00"
   },
   "packetTypes": {
-    "buffStart":  100054,
-    "buffEnd":    100055,
+    "buffStart":  100055,
+    "buffEnd":    100056,
     "enterWorld": 101059,
     "dpsAttack":  20389,
     "dpsDamage":  20897
@@ -156,7 +156,7 @@ IPacketParser\<T\>는 변경 없이 유지. IPacketDescriptor는 PacketAnalyzer 
     {
       "t":        "2026-03-01T14:23:01.456789Z",
       "dir":      "S2C",
-      "type":     100054,
+      "type":     100055,
       "typeName": "BuffStart",
       "parsed":   "userId=12345678  buffKey=1590198662  duration=20.0s",
       "hex":      "785634120000000021BD4362..."

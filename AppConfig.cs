@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Reflection;
 
 namespace OverlayTimer
 {
@@ -113,20 +114,19 @@ namespace OverlayTimer
 
     public sealed class ProtocolConfig
     {
-        // ?⑤벉媛???륁뵠???닌됲뀋????됱뒠. ?? "80 4E 00 00 00 00 00 00 00"
         [JsonPropertyName("startMarker")]
-        public string StartMarker { get; set; } = "80 4E 00 00 00 00 00 00 00";
+        public Confirmable<string> StartMarker { get; set; } = new("82 4E 00 00 00 00 00 00 00", confirmed: true);
 
         [JsonPropertyName("endMarker")]
-        public string EndMarker { get; set; } = "12 4F 00 00 00 00 00 00 00";
+        public Confirmable<string> EndMarker { get; set; } = new("18 4F 00 00 00 00 00 00 00", confirmed: true);
 
         [JsonIgnore]
-        public byte[] StartMarkerBytes => ParseHex(StartMarker);
+        public byte[] StartMarkerBytes => ParseHex(StartMarker.Value);
 
         [JsonIgnore]
-        public byte[] EndMarkerBytes => ParseHex(EndMarker);
+        public byte[] EndMarkerBytes => ParseHex(EndMarker.Value);
 
-        private static byte[] ParseHex(string hex)
+        internal static byte[] ParseHex(string hex)
         {
             hex = hex.Replace(" ", "").Replace("-", "");
             var result = new byte[hex.Length / 2];
@@ -139,19 +139,19 @@ namespace OverlayTimer
     public sealed class PacketTypesConfig
     {
         [JsonPropertyName("buffStart")]
-        public int BuffStart { get; set; } = 100054;
+        public Confirmable<int> BuffStart { get; set; } = new(100055, confirmed: true);
 
         [JsonPropertyName("buffEnd")]
-        public int BuffEnd { get; set; } = 100055;
+        public Confirmable<int> BuffEnd { get; set; } = new(100056, confirmed: true);
 
         [JsonPropertyName("enterWorld")]
-        public int EnterWorld { get; set; } = 101059;
+        public Confirmable<int> EnterWorld { get; set; } = new(101072, confirmed: true);
 
         [JsonPropertyName("dpsAttack")]
-        public int DpsAttack { get; set; } = 20389;
+        public Confirmable<int> DpsAttack { get; set; } = new(20389, confirmed: false);
 
         [JsonPropertyName("dpsDamage")]
-        public int DpsDamage { get; set; } = 20897;
+        public Confirmable<int> DpsDamage { get; set; } = new(20897, confirmed: false);
     }
 
     public sealed class TimerConfig
@@ -481,6 +481,92 @@ namespace OverlayTimer
             {
                 return new Dictionary<uint, string>();
             }
+        }
+    }
+
+    /// <summary>
+    /// 값과 confirmed 플래그를 함께 저장하는 래퍼.
+    /// confirmed=true 인 값은 프로브 대상에서 제외된다.
+    /// JSON 하위 호환: bare 값(string/int)은 confirmed=false 로 역직렬화된다.
+    /// </summary>
+    [JsonConverter(typeof(ConfirmableConverterFactory))]
+    public sealed class Confirmable<T>
+    {
+        [JsonPropertyName("confirmed")]
+        public bool Confirmed { get; set; }
+
+        [JsonPropertyName("value")]
+        public T Value { get; set; }
+
+        public Confirmable() { Value = default!; }
+        public Confirmable(T value, bool confirmed = false) { Value = value; Confirmed = confirmed; }
+    }
+
+    public sealed class ConfirmableConverterFactory : JsonConverterFactory
+    {
+        public override bool CanConvert(Type typeToConvert)
+        {
+            return typeToConvert.IsGenericType
+                && typeToConvert.GetGenericTypeDefinition() == typeof(Confirmable<>);
+        }
+
+        public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
+        {
+            var innerType = typeToConvert.GetGenericArguments()[0];
+            var converterType = typeof(ConfirmableConverter<>).MakeGenericType(innerType);
+            return (JsonConverter)Activator.CreateInstance(converterType)!;
+        }
+    }
+
+    public sealed class ConfirmableConverter<T> : JsonConverter<Confirmable<T>>
+    {
+        public override Confirmable<T> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            // bare value (old format): string or number token
+            if (reader.TokenType == JsonTokenType.String
+                || reader.TokenType == JsonTokenType.Number)
+            {
+                var value = JsonSerializer.Deserialize<T>(ref reader, options)!;
+                return new Confirmable<T>(value, confirmed: false);
+            }
+
+            // new format: { "confirmed": bool, "value": T }
+            if (reader.TokenType == JsonTokenType.StartObject)
+            {
+                bool confirmed = false;
+                T value = default!;
+
+                while (reader.Read())
+                {
+                    if (reader.TokenType == JsonTokenType.EndObject)
+                        break;
+
+                    if (reader.TokenType == JsonTokenType.PropertyName)
+                    {
+                        var prop = reader.GetString();
+                        reader.Read();
+                        if (string.Equals(prop, "confirmed", StringComparison.OrdinalIgnoreCase))
+                            confirmed = reader.GetBoolean();
+                        else if (string.Equals(prop, "value", StringComparison.OrdinalIgnoreCase))
+                            value = JsonSerializer.Deserialize<T>(ref reader, options)!;
+                        else
+                            reader.Skip();
+                    }
+                }
+
+                return new Confirmable<T>(value, confirmed);
+            }
+
+            throw new JsonException($"Unexpected token {reader.TokenType} for Confirmable<{typeof(T).Name}>");
+        }
+
+        public override void Write(Utf8JsonWriter writer, Confirmable<T> value, JsonSerializerOptions options)
+        {
+            writer.WriteStartObject();
+            writer.WriteBoolean("confirmed", value.Confirmed);
+            writer.WritePropertyName("value");
+            JsonSerializer.Serialize(writer, value.Value, options);
+            writer.WriteEndObject();
         }
     }
 }
