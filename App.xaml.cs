@@ -176,18 +176,18 @@ public partial class App : System.Windows.Application
         _sniffer = null;
         _cts = new CancellationTokenSource();
 
-        var selfIdResolver = new SelfIdResolver(config.PacketTypes.EnterWorld, _debugInfo);
+        var selfIdResolver = new SelfIdResolver(config.PacketTypes.EnterWorld.Value, _debugInfo);
         var packetHandler = new PacketHandler(
             _timerTrigger!,
             selfIdResolver,
-            config.PacketTypes.BuffStart,
-            config.PacketTypes.BuffEnd,
+            config.PacketTypes.BuffStart.Value,
+            config.PacketTypes.BuffEnd.Value,
             config.TimerBuffKeys,
             _typeLogger,
             _dpsTracker,
             _buffUptimeTracker,
-            config.PacketTypes.DpsAttack,
-            config.PacketTypes.DpsDamage,
+            config.PacketTypes.DpsAttack.Value,
+            config.PacketTypes.DpsDamage.Value,
             config.Timer.ActiveDurationSeconds,
             _debugInfo,
             config.SelfId.InitialDamageFallback,
@@ -327,14 +327,14 @@ public partial class App : System.Windows.Application
     private static void ApplyProbeResult(ProbeResult r, AppConfig config)
     {
         if (r.NewStartMarker != null)
-            config.Protocol.StartMarker = ToHexString(r.NewStartMarker);
+            config.Protocol.StartMarker.Value = ToHexString(r.NewStartMarker);
         if (r.NewEndMarker != null)
-            config.Protocol.EndMarker = ToHexString(r.NewEndMarker);
-        if (r.NewBuffStart.HasValue)  config.PacketTypes.BuffStart  = r.NewBuffStart.Value;
-        if (r.NewBuffEnd.HasValue)    config.PacketTypes.BuffEnd    = r.NewBuffEnd.Value;
-        if (r.NewEnterWorld.HasValue) config.PacketTypes.EnterWorld = r.NewEnterWorld.Value;
-        if (r.NewDpsAttack.HasValue)  config.PacketTypes.DpsAttack  = r.NewDpsAttack.Value;
-        if (r.NewDpsDamage.HasValue)  config.PacketTypes.DpsDamage  = r.NewDpsDamage.Value;
+            config.Protocol.EndMarker.Value = ToHexString(r.NewEndMarker);
+        if (r.NewBuffStart.HasValue)  config.PacketTypes.BuffStart.Value  = r.NewBuffStart.Value;
+        if (r.NewBuffEnd.HasValue)    config.PacketTypes.BuffEnd.Value    = r.NewBuffEnd.Value;
+        if (r.NewEnterWorld.HasValue) config.PacketTypes.EnterWorld.Value = r.NewEnterWorld.Value;
+        if (r.NewDpsAttack.HasValue)  config.PacketTypes.DpsAttack.Value  = r.NewDpsAttack.Value;
+        if (r.NewDpsDamage.HasValue)  config.PacketTypes.DpsDamage.Value  = r.NewDpsDamage.Value;
     }
 
     private static string ToHexString(byte[] bytes) =>
@@ -343,24 +343,24 @@ public partial class App : System.Windows.Application
     private static ProbeConfigSnapshot CaptureProbeConfigSnapshot(AppConfig config)
     {
         return new ProbeConfigSnapshot(
-            config.Protocol.StartMarker,
-            config.Protocol.EndMarker,
-            config.PacketTypes.BuffStart,
-            config.PacketTypes.BuffEnd,
-            config.PacketTypes.EnterWorld,
-            config.PacketTypes.DpsAttack,
-            config.PacketTypes.DpsDamage);
+            config.Protocol.StartMarker.Value,
+            config.Protocol.EndMarker.Value,
+            config.PacketTypes.BuffStart.Value,
+            config.PacketTypes.BuffEnd.Value,
+            config.PacketTypes.EnterWorld.Value,
+            config.PacketTypes.DpsAttack.Value,
+            config.PacketTypes.DpsDamage.Value);
     }
 
     private static void RestoreProbeConfigSnapshot(AppConfig config, ProbeConfigSnapshot snapshot)
     {
-        config.Protocol.StartMarker = snapshot.StartMarker;
-        config.Protocol.EndMarker = snapshot.EndMarker;
-        config.PacketTypes.BuffStart = snapshot.BuffStart;
-        config.PacketTypes.BuffEnd = snapshot.BuffEnd;
-        config.PacketTypes.EnterWorld = snapshot.EnterWorld;
-        config.PacketTypes.DpsAttack = snapshot.DpsAttack;
-        config.PacketTypes.DpsDamage = snapshot.DpsDamage;
+        config.Protocol.StartMarker.Value = snapshot.StartMarker;
+        config.Protocol.EndMarker.Value = snapshot.EndMarker;
+        config.PacketTypes.BuffStart.Value = snapshot.BuffStart;
+        config.PacketTypes.BuffEnd.Value = snapshot.BuffEnd;
+        config.PacketTypes.EnterWorld.Value = snapshot.EnterWorld;
+        config.PacketTypes.DpsAttack.Value = snapshot.DpsAttack;
+        config.PacketTypes.DpsDamage.Value = snapshot.DpsDamage;
     }
 
     private sealed record ProbeConfigSnapshot(

@@ -13,6 +13,7 @@ namespace OverlayTimer
         private string _nicName = "(없음)";
         private ulong _selfId;
         private string _selfIdSource = "미확정";
+        private string _probeStatus = "";
         private readonly Queue<EnterWorldRecord> _enterWorldRecords = new();
         private readonly Queue<DamageRecord> _damageRecords = new();
         private const int MaxRecords = 10;
@@ -25,6 +26,11 @@ namespace OverlayTimer
         public void SetSelfId(ulong id, string source)
         {
             lock (_lock) { _selfId = id; _selfIdSource = source; }
+        }
+
+        public void SetProbeStatus(string status)
+        {
+            lock (_lock) _probeStatus = status;
         }
 
         public void AddEnterWorldRecord(ulong id)
@@ -55,6 +61,7 @@ namespace OverlayTimer
                     _nicName,
                     _selfId,
                     _selfIdSource,
+                    _probeStatus,
                     new List<EnterWorldRecord>(_enterWorldRecords),
                     new List<DamageRecord>(_damageRecords));
             }
@@ -66,6 +73,7 @@ namespace OverlayTimer
         public string NicName { get; }
         public ulong SelfId { get; }
         public string SelfIdSource { get; }
+        public string ProbeStatus { get; }
         public IReadOnlyList<EnterWorldRecord> EnterWorldRecords { get; }
         public IReadOnlyList<DamageRecord> DamageRecords { get; }
 
@@ -73,12 +81,14 @@ namespace OverlayTimer
             string nicName,
             ulong selfId,
             string selfIdSource,
+            string probeStatus,
             IReadOnlyList<EnterWorldRecord> enterWorldRecords,
             IReadOnlyList<DamageRecord> damageRecords)
         {
             NicName = nicName;
             SelfId = selfId;
             SelfIdSource = selfIdSource;
+            ProbeStatus = probeStatus;
             EnterWorldRecords = enterWorldRecords;
             DamageRecords = damageRecords;
         }
