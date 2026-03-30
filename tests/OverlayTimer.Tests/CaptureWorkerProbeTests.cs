@@ -272,7 +272,7 @@ public class CaptureWorkerProbeTests
     }
 
     [Fact]
-    public void Probe_ReprobesConfirmedTypesAfterRepeatedFailures()
+    public void Probe_DoesNotReprobeConfirmedTypesAfterRepeatedFailures()
     {
         ProbeResult? capturedResult = null;
 
@@ -327,9 +327,7 @@ public class CaptureWorkerProbeTests
         Assert.Null(capturedResult);
 
         worker.OnTcpPayload(bulk, CaptureWorker.Direction.ServerToClient);
-        Assert.NotNull(capturedResult);
-        Assert.Equal(newBuffStart, capturedResult!.NewBuffStart);
-        Assert.Equal(newBuffEnd, capturedResult.NewBuffEnd);
+        Assert.Null(capturedResult);
     }
 
     [Fact]

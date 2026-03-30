@@ -750,8 +750,7 @@ public class ProtocolProbeTests
             MakeTypesConfig(allConfirmed: true),
             markerRadius: 128,
             typeRadius: 10,
-            includeConfirmedMarkers: true,
-            includeConfirmedTypes: true);
+            includeConfirmedMarkers: true);
 
         Assert.NotNull(result);
         Assert.Equal(newStart, result.NewStartMarker);
@@ -759,7 +758,7 @@ public class ProtocolProbeTests
     }
 
     [Fact]
-    public void TryDiscover_ConfirmedTypesCanBeForced_ExceptEnterWorld()
+    public void TryDiscover_ConfirmedTypesStaySkipped()
     {
         int delta = 10;
         int newBuffStart  = CurBuffStart + delta;
@@ -785,15 +784,9 @@ public class ProtocolProbeTests
             MakeProtocolConfig(BaseStart, BaseEnd),
             MakeTypesConfig(allConfirmed: true),
             markerRadius: 5,
-            typeRadius: 50,
-            includeConfirmedTypes: true);
+            typeRadius: 50);
 
-        Assert.NotNull(result);
-        Assert.Equal(newBuffStart, result.NewBuffStart);
-        Assert.Equal(newBuffEnd, result.NewBuffEnd);
-        Assert.Null(result.NewEnterWorld);
-        Assert.Equal(newDpsAttack, result.NewDpsAttack);
-        Assert.Equal(newDpsDamage, result.NewDpsDamage);
+        Assert.Null(result);
     }
 
     [Fact]

@@ -33,8 +33,7 @@ namespace OverlayTimer.Net
             PacketTypesConfig types,
             int markerRadius = DefaultMarkerRadius,
             int typeRadius   = DefaultTypeRadius,
-            bool includeConfirmedMarkers = false,
-            bool includeConfirmedTypes   = false)
+            bool includeConfirmedMarkers = false)
         {
             if (rawData == null || rawData.Length < 18)
                 return null;
@@ -56,13 +55,11 @@ namespace OverlayTimer.Net
             var packets = ExtractPackets(rawData, bestStart, bestEnd);
 
             // 3단계: 패킷 타입 탐색 — confirmed 값은 스킵
-            int? newBuffStart  = (types.BuffStart.Confirmed  && !includeConfirmedTypes) ? null : TryFindBuffStart(packets, types.BuffStart.Value, typeRadius);
-            int? newBuffEnd    = (types.BuffEnd.Confirmed    && !includeConfirmedTypes) ? null : TryFindBuffEnd(packets, types.BuffEnd.Value, newBuffStart, typeRadius);
-            // enterWorld is intentionally excluded from confirmed re-probe.
-            // Its parser is permissive enough that parse misses can cause noisy re-discovery.
+            int? newBuffStart  = types.BuffStart.Confirmed ? null : TryFindBuffStart(packets, types.BuffStart.Value, typeRadius);
+            int? newBuffEnd    = types.BuffEnd.Confirmed ? null : TryFindBuffEnd(packets, types.BuffEnd.Value, newBuffStart, typeRadius);
             int? newEnterWorld = types.EnterWorld.Confirmed ? null : TryFindEnterWorld(packets, types.EnterWorld.Value, typeRadius);
-            int? newDpsAttack  = (types.DpsAttack.Confirmed  && !includeConfirmedTypes) ? null : TryFindDpsAttack(packets, types.DpsAttack.Value, typeRadius);
-            int? newDpsDamage  = (types.DpsDamage.Confirmed  && !includeConfirmedTypes) ? null : TryFindDpsDamage(packets, types.DpsDamage.Value, typeRadius);
+            int? newDpsAttack  = types.DpsAttack.Confirmed ? null : TryFindDpsAttack(packets, types.DpsAttack.Value, typeRadius);
+            int? newDpsDamage  = types.DpsDamage.Confirmed ? null : TryFindDpsDamage(packets, types.DpsDamage.Value, typeRadius);
 
             bool markerChanged = !bestStart.AsSpan().SequenceEqual(curStart)
                               || !bestEnd.AsSpan().SequenceEqual(curEnd);
