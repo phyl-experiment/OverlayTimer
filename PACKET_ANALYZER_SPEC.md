@@ -125,15 +125,15 @@ IPacketParser\<T\>는 변경 없이 유지. IPacketDescriptor는 PacketAnalyzer 
     "deviceName": null
   },
   "protocol": {
-    "startMarker": "80 4E 00 00 00 00 00 00 00",
-    "endMarker":   "12 4F 00 00 00 00 00 00 00"
+    "startMarker": "83 4E 00 00 00 00 00 00 00",
+    "endMarker":   "1A 4F 00 00 00 00 00 00 00"
   },
   "packetTypes": {
     "buffStart":  100055,
     "buffEnd":    100056,
-    "enterWorld": 101059,
-    "dpsAttack":  20389,
-    "dpsDamage":  20897
+    "enterWorld": 101072,
+    "dpsAttack":  20403,
+    "dpsDamage":  20937
   },
   "dumpToggleKey": "F10",
   "overlay": { "x": 200.0, "y": 200.0, "width": 750.0, "height": 550.0 }

@@ -336,6 +336,10 @@
                         <TextBlock x:Name="DebugSelfIdText"
                                    Foreground="#FFB3C5D1"
                                    FontSize="11"
+                                   Margin="0,0,0,2"/>
+                        <TextBlock x:Name="DebugProbeText"
+                                   Foreground="#FFFFCC66"
+                                   FontSize="11"
                                    Margin="0,0,0,6"/>
 
                         <!-- EnterWorld 패킷 목록 -->

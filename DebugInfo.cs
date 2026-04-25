@@ -33,11 +33,11 @@ namespace OverlayTimer
             lock (_lock) _probeStatus = status;
         }
 
-        public void AddEnterWorldRecord(ulong id)
+        public void AddEnterWorldRecord(ulong id, bool confirmed)
         {
             lock (_lock)
             {
-                _enterWorldRecords.Enqueue(new EnterWorldRecord(DateTime.Now, id));
+                _enterWorldRecords.Enqueue(new EnterWorldRecord(DateTime.Now, id, confirmed));
                 if (_enterWorldRecords.Count > MaxRecords)
                     _enterWorldRecords.Dequeue();
             }
@@ -98,11 +98,13 @@ namespace OverlayTimer
     {
         public DateTime Time { get; }
         public ulong PlayerId { get; }
+        public bool Confirmed { get; }
 
-        public EnterWorldRecord(DateTime time, ulong playerId)
+        public EnterWorldRecord(DateTime time, ulong playerId, bool confirmed)
         {
             Time = time;
             PlayerId = playerId;
+            Confirmed = confirmed;
         }
     }
 

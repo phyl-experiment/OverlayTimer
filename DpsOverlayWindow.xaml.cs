@@ -561,12 +561,14 @@ namespace OverlayTimer
                 DebugSelfIdText.Text = dbg.SelfId == 0
                     ? "SelfId: \uBBF8\uD655\uC815"
                     : $"SelfId: {dbg.SelfId}  (\uC18C\uC2A4: {dbg.SelfIdSource})";
+                DebugProbeText.Text = string.IsNullOrEmpty(dbg.ProbeStatus) ? "" : dbg.ProbeStatus;
 
                 var ewRows = new List<DebugLabelRow>(dbg.EnterWorldRecords.Count);
                 for (int i = dbg.EnterWorldRecords.Count - 1; i >= 0; i--)
                 {
                     var r = dbg.EnterWorldRecords[i];
-                    ewRows.Add(new DebugLabelRow { Label = $"{r.Time:HH:mm:ss}  id={r.PlayerId}" });
+                    string confirmedLabel = r.Confirmed ? " (확정)" : "";
+                    ewRows.Add(new DebugLabelRow { Label = $"{r.Time:HH:mm:ss}  id={r.PlayerId}{confirmedLabel}" });
                 }
                 DebugEnterWorldItems.ItemsSource = ewRows;
 

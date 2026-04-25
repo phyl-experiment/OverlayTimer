@@ -472,8 +472,9 @@ public class CaptureWorkerProbeTests
 
     private static byte[] MakeEnterWorldPayload(ulong selfId = 99887766UL)
     {
-        var p = new byte[24];
-        BinaryPrimitives.WriteUInt64LittleEndian(p.AsSpan(16, 8), selfId);
+        var p = new byte[18];
+        BinaryPrimitives.WriteUInt64LittleEndian(p.AsSpan(0, 8), selfId);
+        p[16] = 0x01;
         return p;
     }
 

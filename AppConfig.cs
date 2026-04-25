@@ -115,10 +115,10 @@ namespace OverlayTimer
     public sealed class ProtocolConfig
     {
         [JsonPropertyName("startMarker")]
-        public Confirmable<string> StartMarker { get; set; } = new("82 4E 00 00 00 00 00 00 00", confirmed: true);
+        public Confirmable<string> StartMarker { get; set; } = new("83 4E 00 00 00 00 00 00 00", confirmed: true);
 
         [JsonPropertyName("endMarker")]
-        public Confirmable<string> EndMarker { get; set; } = new("18 4F 00 00 00 00 00 00 00", confirmed: true);
+        public Confirmable<string> EndMarker { get; set; } = new("1A 4F 00 00 00 00 00 00 00", confirmed: true);
 
         [JsonIgnore]
         public byte[] StartMarkerBytes => ParseHex(StartMarker.Value);
@@ -139,19 +139,19 @@ namespace OverlayTimer
     public sealed class PacketTypesConfig
     {
         [JsonPropertyName("buffStart")]
-        public Confirmable<int> BuffStart { get; set; } = new(100055, confirmed: true);
+        public Confirmable<int> BuffStart { get; set; } = new(110055, confirmed: false);
 
         [JsonPropertyName("buffEnd")]
-        public Confirmable<int> BuffEnd { get; set; } = new(100056, confirmed: true);
+        public Confirmable<int> BuffEnd { get; set; } = new(110056, confirmed: false);
 
         [JsonPropertyName("enterWorld")]
-        public Confirmable<int> EnterWorld { get; set; } = new(101072, confirmed: true);
+        public Confirmable<int> EnterWorld { get; set; } = new(110022, confirmed: false);
 
         [JsonPropertyName("dpsAttack")]
-        public Confirmable<int> DpsAttack { get; set; } = new(20389, confirmed: false);
+        public Confirmable<int> DpsAttack { get; set; } = new(20408, confirmed: false);
 
         [JsonPropertyName("dpsDamage")]
-        public Confirmable<int> DpsDamage { get; set; } = new(20897, confirmed: false);
+        public Confirmable<int> DpsDamage { get; set; } = new(20937, confirmed: true);
     }
 
     public sealed class TimerConfig

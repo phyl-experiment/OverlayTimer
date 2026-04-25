@@ -12,13 +12,13 @@
 ## 현재 값 (기준점)
 | 항목 | 현재 값 | confirmed |
 |------|---------|-----------|
-| StartMarker | `82 4E 00 00 00 00 00 00 00` (앞 2바이트 = LE uint16) | ✅ |
-| EndMarker | `18 4F 00 00 00 00 00 00 00` | ✅ |
-| buffStart | 100055 | ✅ |
-| buffEnd | 100056 | ✅ |
-| enterWorld | 101072 | ✅ |
-| dpsAttack | 20389 | ❌ |
-| dpsDamage | 20897 | ❌ |
+| StartMarker | `83 4E 00 00 00 00 00 00 00` (앞 2바이트 = LE uint16) | ✅ |
+| EndMarker | `1A 4F 00 00 00 00 00 00 00` | ✅ |
+| buffStart | 100055 | ❌ |
+| buffEnd | 100056 | ❌ |
+| enterWorld | 101072 | ❌ |
+| dpsAttack | 20403 | ❌ |
+| dpsDamage | 20937 | ✅ |
 
 ---
 

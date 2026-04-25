@@ -39,6 +39,10 @@ namespace OverlayTimer.Net
         /// <summary>알려진 패킷 타입과 일치한 누적 카운트. 새 프로토콜 확인에 사용.</summary>
         public int RecognizedPacketCount { get; private set; }
 
+        /// <summary>실제 인식된 dataType 값 집합. 프로브 트리거 판별에 사용.</summary>
+        private readonly HashSet<int> _recognizedDataTypes = new();
+        public IReadOnlySet<int> RecognizedDataTypes => _recognizedDataTypes;
+
         public PacketHandler(
             ITimerTrigger timerTrigger,
             SelfIdResolver selfIdResolver,
@@ -48,8 +52,8 @@ namespace OverlayTimer.Net
             PacketTypeLogger? logger = null,
             DpsTracker? dpsTracker = null,
             BuffUptimeTracker? buffUptimeTracker = null,
-            int dpsAttackType = 20389,
-            int dpsDamageType = 20897,
+            int dpsAttackType = 20403,
+            int dpsDamageType = 20937,
             int defaultActiveDurationSeconds = 20,
             OverlayTimer.DebugInfo? debugInfo = null,
             bool allowInitialDamageFallback = false,
@@ -106,6 +110,7 @@ namespace OverlayTimer.Net
             if (parsedId == 0)
                 return;
 
+            _recognizedDataTypes.Add(dataType);
             RecognizedPacketCount++;
 
             // Reset DPS and tracked buff instances only when the self ID actually changes.
@@ -132,6 +137,7 @@ namespace OverlayTimer.Net
         {
             if (!PacketBuffStart.TryParse(content, out var parsed))
                 return false;
+            _recognizedDataTypes.Add(_buffStartDataType);
 
             ulong selfId = _selfIdResolver.SelfId;
             // Buff is strict: until selfId is resolved, do not update buff state/timer.
@@ -176,6 +182,7 @@ namespace OverlayTimer.Net
         {
             if (!PacketBuffEnd.TryParse(content, out var parsed))
                 return false;
+            _recognizedDataTypes.Add(_buffEndDataType);
 
             ulong selfId = _selfIdResolver.SelfId;
             // Keep BuffEnd behavior consistent with BuffStart: ignore until selfId is known.
@@ -280,6 +287,7 @@ namespace OverlayTimer.Net
             {
                 if (!PacketDamage20897.TryParse(content, out var damagePacket))
                     return false;
+                _recognizedDataTypes.Add(dataType);
 
                 if (!hasSelfId)
                 {
@@ -316,6 +324,7 @@ namespace OverlayTimer.Net
 
             if (dataType != _dpsAttackType || !PacketAttack20389.TryParse(content, out var attackPacket))
                 return false;
+            _recognizedDataTypes.Add(dataType);
 
             if (hasSelfId && attackPacket.UserId != selfId)
                 return true;

@@ -1,11 +1,14 @@
 using System;
 using System.Buffers.Binary;
+using OverlayTimer;
 using OverlayTimer.Net;
 
 namespace OverlayTimer.Tests;
 
 public class PacketHandlerSelfIdTests
 {
+    private const int ReadyToEnterWorldTypeA = 110539;
+    private const int ReadyToEnterWorldTypeB = 110540;
     private const int BuffStartType = 100055;
     private const int BuffEndType = 100056;
     private const int EnterWorldType = 101059;
@@ -14,11 +17,79 @@ public class PacketHandlerSelfIdTests
     private const uint TestBuffKey = 1590198662u;
 
     [Fact]
+    public void EnterWorld_IgnoredUntilReadyPacketSeen()
+    {
+        var resolver = new SelfIdResolver(EnterWorldType);
+
+        Assert.Equal(0UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(1111UL)));
+        Assert.Equal(0UL, resolver.SelfId);
+
+        resolver.TryFeed(ReadyToEnterWorldTypeA, Array.Empty<byte>());
+
+        Assert.Equal(1111UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(1111UL)));
+        Assert.Equal(1111UL, resolver.SelfId);
+    }
+
+    [Theory]
+    [InlineData(ReadyToEnterWorldTypeA)]
+    [InlineData(ReadyToEnterWorldTypeB)]
+    public void EnterWorld_ResolvedAfterEitherReadyPacket(int readyType)
+    {
+        var resolver = new SelfIdResolver(EnterWorldType);
+
+        resolver.TryFeed(readyType, Array.Empty<byte>());
+
+        Assert.Equal(2222UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(2222UL)));
+        Assert.Equal(2222UL, resolver.SelfId);
+    }
+
+    [Fact]
+    public void EnterWorld_ConsumesOnlyFirstPacketAfterReady()
+    {
+        var resolver = new SelfIdResolver(EnterWorldType);
+
+        resolver.TryFeed(ReadyToEnterWorldTypeA, Array.Empty<byte>());
+
+        Assert.Equal(3333UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(3333UL)));
+        Assert.Equal(0UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(4444UL)));
+        Assert.Equal(3333UL, resolver.SelfId);
+    }
+
+    [Fact]
+    public void ReadyPacket_ExpiresAfterShortWindow()
+    {
+        var resolver = new SelfIdResolver(EnterWorldType);
+
+        resolver.TryFeed(ReadyToEnterWorldTypeB, Array.Empty<byte>());
+        for (int i = 0; i < 8; i++)
+            resolver.TryFeed(900000 + i, Array.Empty<byte>());
+
+        Assert.Equal(0UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(5555UL)));
+        Assert.Equal(0UL, resolver.SelfId);
+    }
+
+    [Fact]
+    public void EnterWorld_DebugInfoMarksConfirmedRecords()
+    {
+        var debugInfo = new DebugInfo();
+        var resolver = new SelfIdResolver(EnterWorldType, debugInfo);
+
+        Assert.Equal(0UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(1111UL)));
+
+        resolver.TryFeed(ReadyToEnterWorldTypeA, Array.Empty<byte>());
+        Assert.Equal(2222UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(2222UL)));
+
+        var snapshot = debugInfo.GetSnapshot();
+        Assert.Equal(2, snapshot.EnterWorldRecords.Count);
+        Assert.False(snapshot.EnterWorldRecords[0].Confirmed);
+        Assert.Equal(1111UL, snapshot.EnterWorldRecords[0].PlayerId);
+        Assert.True(snapshot.EnterWorldRecords[1].Confirmed);
+        Assert.Equal(2222UL, snapshot.EnterWorldRecords[1].PlayerId);
+    }
+
+    [Fact]
     public void BuffStart_IgnoredUntilSelfIdResolved()
     {
-        // 각성 버프 패킷은 selfId 미확정 시 즉시 발화하지 않고 임시 보관됨.
-        // selfId 확정(EnterWorld) 시 잔여 시간으로 소급 발화(1회),
-        // 이후 같은 버프 패킷 재수신 시 다시 발화(1회) → 총 2회.
         var trigger = new CountingTrigger();
         var resolver = new SelfIdResolver(EnterWorldType);
         var handler = new PacketHandler(
@@ -34,15 +105,13 @@ public class PacketHandlerSelfIdTests
 
         var payload = MakeBuffStartPayload(userId: 1111UL, buffKey: TestBuffKey, instKey: 9001UL);
 
-        // selfId 미확정 → 즉시 발화 없음
         handler.OnPacket(BuffStartType, payload);
         Assert.Equal(0, trigger.Count);
 
-        // EnterWorld 도착 → 임시 보관된 각성 버프 소급 발화
+        handler.OnPacket(ReadyToEnterWorldTypeA, Array.Empty<byte>());
         handler.OnPacket(EnterWorldType, MakeEnterWorldPayload(1111UL));
         Assert.Equal(1, trigger.Count);
 
-        // selfId 확정 후 버프 패킷 재수신 → 정상 발화
         handler.OnPacket(BuffStartType, payload);
         Assert.Equal(2, trigger.Count);
     }
@@ -50,8 +119,6 @@ public class PacketHandlerSelfIdTests
     [Fact]
     public void AwakenBuff_ResolvedViaDamage_ActivatesPendingTimer()
     {
-        // EnterWorld 없이 데미지 패킷 N회(임계치)로 selfId 확정 시,
-        // 이전에 수신한 각성 버프 타이머가 잔여 시간으로 활성화되는지 검증.
         var trigger = new CountingTrigger();
         var resolver = new SelfIdResolver(EnterWorldType);
         var dpsTracker = new DpsTracker();
@@ -69,12 +136,10 @@ public class PacketHandlerSelfIdTests
 
         byte[] flags = [0x01, 0x02, 0x03, 0x08, 0x00, 0x00, 0x00];
 
-        // selfId 미확정 상태에서 각성 버프 수신 → 임시 보관
         handler.OnPacket(BuffStartType, MakeBuffStartPayload(userId: 2222UL, buffKey: TestBuffKey, instKey: 5555UL, durationSeconds: 30f));
         Assert.Equal(0, trigger.Count);
         Assert.Equal(0UL, resolver.SelfId);
 
-        // 유효 데미지 1회 → selfId 즉시 확정 + 각성 타이머 소급 발화
         handler.OnPacket(DpsDamageType, MakeDpsDamagePayload(userId: 2222u, targetId: 3333u, damage: 50000u, flags: flags));
         Assert.Equal(2222UL, resolver.SelfId);
         Assert.Equal(1, trigger.Count);
@@ -105,6 +170,7 @@ public class PacketHandlerSelfIdTests
 
         Assert.Equal(50000, dpsTracker.GetSnapshot().TotalDamage);
 
+        handler.OnPacket(ReadyToEnterWorldTypeB, Array.Empty<byte>());
         handler.OnPacket(EnterWorldType, MakeEnterWorldPayload(2222UL));
         handler.OnPacket(DpsDamageType, MakeDpsDamagePayload(userId: 2222u, targetId: 3333u, damage: 50000u, flags: flags));
         handler.OnPacket(DpsAttackType, MakeDpsAttackPayload(userId: 2222u, targetId: 3333u, key1: 77u, key2: 88u, flags: flags));
@@ -125,8 +191,9 @@ public class PacketHandlerSelfIdTests
 
     private static byte[] MakeEnterWorldPayload(ulong selfId)
     {
-        var payload = new byte[24];
-        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(16, 8), selfId);
+        var payload = new byte[18];
+        BinaryPrimitives.WriteUInt64LittleEndian(payload.AsSpan(0, 8), selfId);
+        payload[16] = 0x01;
         return payload;
     }
 

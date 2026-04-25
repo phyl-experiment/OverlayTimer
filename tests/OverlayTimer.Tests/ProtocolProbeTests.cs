@@ -89,8 +89,10 @@ public class ProtocolProbeTests
 
     private static byte[] MakeEnterWorldPayload(ulong selfId = 99887766UL)
     {
-        var p = new byte[24];
-        BinaryPrimitives.WriteUInt64LittleEndian(p.AsSpan(16, 8), selfId);
+        var p = new byte[18];
+        BinaryPrimitives.WriteUInt64LittleEndian(p.AsSpan(0, 8), selfId);
+        // offset 8: zero padding (8 bytes), offset 16: flag 0x0100
+        p[16] = 0x01;
         return p;
     }
 
@@ -254,9 +256,11 @@ public class ProtocolProbeTests
         var data = new StreamBuilder()
             .AddFrame(BaseStart, BaseEnd,
                 (CurBuffStart, MakeBuffStartPayload()),
+                (CurBuffEnd, MakeBuffEndPayload()),
                 (CurEnterWorld, MakeEnterWorldPayload()))
             .AddFrame(BaseStart, BaseEnd,
-                (CurBuffStart, MakeBuffStartPayload()))
+                (CurBuffStart, MakeBuffStartPayload()),
+                (CurBuffEnd, MakeBuffEndPayload()))
             .AddFrame(BaseStart, BaseEnd,
                 (CurDpsAttack, MakeDpsAttackPayload()),
                 (CurDpsDamage, MakeDpsDamagePayload()))
@@ -525,6 +529,24 @@ public class ProtocolProbeTests
         };
 
         int? found = ProtocolProbe.TryFindBuffEnd(packets, CurBuffEnd, newBuffStart, 200);
+        Assert.Equal(newBuffEnd, found);
+    }
+
+    [Fact]
+    public void TryFindBuffEnd_16BytePayload_Accepted()
+    {
+        int newBuffEnd = CurBuffEnd + 5;
+        // 16-byte payload: userId(8) + instKey(8), no state field
+        var shortPayload = new byte[16];
+        BinaryPrimitives.WriteUInt64LittleEndian(shortPayload.AsSpan(0, 8), 12345678UL);
+        BinaryPrimitives.WriteUInt64LittleEndian(shortPayload.AsSpan(8, 8), 999UL);
+
+        var packets = new List<(int, byte[])>
+        {
+            (newBuffEnd, shortPayload)
+        };
+
+        int? found = ProtocolProbe.TryFindBuffEnd(packets, CurBuffEnd, null, 200);
         Assert.Equal(newBuffEnd, found);
     }
 

@@ -80,7 +80,9 @@ namespace OverlayTimer.Net
             _worker = new CaptureWorker(_parser, _protocolConfig, _typesConfig)
             {
                 OnProbeSuccess = r => OnProbeSuccess?.Invoke(r),
-                GetRecognizedPackets = () => _packetHandler.RecognizedPacketCount
+                GetRecognizedPackets = () => _packetHandler.RecognizedPacketCount,
+                GetRecognizedDataTypes = () => _packetHandler.RecognizedDataTypes,
+                DebugInfo = _debugInfo
             };
         }
 
@@ -94,8 +96,8 @@ namespace OverlayTimer.Net
                 $"[Sniffer] Start: targetPort={_targetPort} " +
                 $"captureFilter=\"{GetEffectiveFilter()}\" " +
                 $"deviceName=\"{_deviceName ?? "(auto)"}\" autoReselect={_autoReselect} " +
-                $"startMarker=\"{_protocolConfig.StartMarker}\" endMarker=\"{_protocolConfig.EndMarker}\" " +
-                $"types(bStart={_typesConfig.BuffStart}, bEnd={_typesConfig.BuffEnd}, enter={_typesConfig.EnterWorld}, atk={_typesConfig.DpsAttack}, dmg={_typesConfig.DpsDamage})");
+                $"startMarker=\"{_protocolConfig.StartMarker.Value}\" endMarker=\"{_protocolConfig.EndMarker.Value}\" " +
+                $"types(bStart={_typesConfig.BuffStart.Value}, bEnd={_typesConfig.BuffEnd.Value}, enter={_typesConfig.EnterWorld.Value}, atk={_typesConfig.DpsAttack.Value}, dmg={_typesConfig.DpsDamage.Value})");
 
             _candidates = DeviceSelector.GetCandidates();
             DeviceSelector.LogCandidates(_candidates);
@@ -378,7 +380,9 @@ namespace OverlayTimer.Net
             _worker = new CaptureWorker(_parser, _protocolConfig, _typesConfig)
             {
                 OnProbeSuccess = r => OnProbeSuccess?.Invoke(r),
-                GetRecognizedPackets = () => _packetHandler.RecognizedPacketCount
+                GetRecognizedPackets = () => _packetHandler.RecognizedPacketCount,
+                GetRecognizedDataTypes = () => _packetHandler.RecognizedDataTypes,
+                DebugInfo = _debugInfo
             };
         }
 

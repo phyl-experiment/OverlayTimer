@@ -274,7 +274,7 @@ namespace OverlayTimer.Net
         }
 
         /// <summary>
-        /// buffEnd: payload ≥ 20, UserId ≠ 0, InstKey ≠ 0.
+        /// buffEnd: payload ≥ 16, UserId ≠ 0, InstKey ≠ 0.
         /// newBuffStart が発見済みの場合 buffStart+1 を優先確認する.
         /// </summary>
         public static int? TryFindBuffEnd(
@@ -295,15 +295,15 @@ namespace OverlayTimer.Net
         }
 
         /// <summary>
-        /// enterWorld: payload ≥ 24, offset 16 의 uint64 ≠ 0
+        /// enterWorld: payload ≥ 16, offset 0 의 uint64 ≠ 0
         /// </summary>
         public static int? TryFindEnterWorld(
             List<(int dataType, byte[] payload)> packets, int current, int radius)
         {
             return FindTypeByHeuristic(packets, current, radius, static (_, p) =>
             {
-                if (p.Length < 24) return false;
-                ulong id = BinaryPrimitives.ReadUInt64LittleEndian(p.AsSpan(16, 8));
+                if (p.Length < 16) return false;
+                ulong id = BinaryPrimitives.ReadUInt64LittleEndian(p.AsSpan(0, 8));
                 return id != 0;
             });
         }
@@ -346,7 +346,7 @@ namespace OverlayTimer.Net
 
         private static bool IsBuffEndShape(byte[] p)
         {
-            if (p.Length < 20) return false;
+            if (p.Length < 16) return false;
             ulong userId  = BinaryPrimitives.ReadUInt64LittleEndian(p.AsSpan(0, 8));
             ulong instKey = BinaryPrimitives.ReadUInt64LittleEndian(p.AsSpan(8, 8));
             return userId != 0 && instKey != 0;
@@ -359,6 +359,22 @@ namespace OverlayTimer.Net
             Func<int, byte[], bool> heuristic,
             int minHits = 1)
         {
+            // 현재 값이 데이터에서 유효하면 변경 불필요
+            {
+                int hits = 0;
+                foreach (var (dt, payload) in packets)
+                {
+                    if (dt != current) continue;
+                    if (heuristic(dt, payload))
+                    {
+                        hits++;
+                        if (hits >= minHits)
+                            return null;
+                    }
+                }
+            }
+
+            // forward 우선 탐색 (프로토콜 값은 항상 증가하므로)
             for (int delta = 1; delta <= radius; delta++)
             {
                 int candidate = current + delta;
@@ -374,6 +390,25 @@ namespace OverlayTimer.Net
                     }
                 }
             }
+
+            // forward에서 못 찾으면 backward 탐색
+            for (int delta = 1; delta <= radius; delta++)
+            {
+                int candidate = current - delta;
+                if (candidate < 0) continue;
+                int hits = 0;
+                foreach (var (dt, payload) in packets)
+                {
+                    if (dt != candidate) continue;
+                    if (heuristic(dt, payload))
+                    {
+                        hits++;
+                        if (hits >= minHits)
+                            return candidate;
+                    }
+                }
+            }
+
             return null;
         }
 
