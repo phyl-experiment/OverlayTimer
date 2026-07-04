@@ -1,0 +1,58 @@
+<Window x:Class="ClickMacro.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="ClickMacro" Width="240" SizeToContent="Height"
+        ResizeMode="NoResize" WindowStartupLocation="CenterScreen"
+        Topmost="True">
+    <Grid Margin="14 12 14 12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="80"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto" MinHeight="30"/>
+            <RowDefinition Height="36"/>
+        </Grid.RowDefinitions>
+
+        <ListBox x:Name="ScenarioList"
+                 Grid.Row="0"
+                 DisplayMemberPath="Name"
+                 SelectionChanged="ScenarioList_SelectionChanged"/>
+
+        <ItemsControl x:Name="RepeatStepsPanel"
+                      Grid.Row="1"
+                      Margin="0 8 0 0">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal" Margin="0 3">
+                        <TextBlock Text="{Binding Label}"
+                                   VerticalAlignment="Center"
+                                   FontSize="12" Foreground="#555"
+                                   Width="38"/>
+                        <TextBox Text="{Binding DurationSecs, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 Width="50" Margin="6 0 4 0"
+                                 TextAlignment="Center" FontSize="12"
+                                 VerticalContentAlignment="Center" Padding="0 2"/>
+                        <TextBlock Text="초"
+                                   VerticalAlignment="Center"
+                                   FontSize="12" Foreground="#555"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock x:Name="StatusText"
+                   Grid.Row="2"
+                   Text="중지됨"
+                   FontSize="13"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"
+                   Foreground="#444"
+                   TextAlignment="Center"/>
+
+        <Button x:Name="ToggleButton"
+                Grid.Row="3"
+                Content="시작  (F12)"
+                FontSize="12"
+                Margin="0 8 0 0"
+                Click="ToggleButton_Click"/>
+    </Grid>
+</Window>
