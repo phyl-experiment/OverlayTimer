@@ -136,11 +136,12 @@ public sealed class CaptureWorker
         var recognized = GetRecognizedDataTypes?.Invoke();
         if (recognized == null) return result;
 
-        if (!_typesConfig.BuffStart.Confirmed  && !recognized.Contains(_typesConfig.BuffStart.Value))  result.Add("buffStart");
-        if (!_typesConfig.BuffEnd.Confirmed    && !recognized.Contains(_typesConfig.BuffEnd.Value))    result.Add("buffEnd");
-        if (!_typesConfig.EnterWorld.Confirmed && !recognized.Contains(_typesConfig.EnterWorld.Value)) result.Add("enterWorld");
-        if (!_typesConfig.DpsAttack.Confirmed  && !recognized.Contains(_typesConfig.DpsAttack.Value))  result.Add("dpsAttack");
-        if (!_typesConfig.DpsDamage.Confirmed  && !recognized.Contains(_typesConfig.DpsDamage.Value))  result.Add("dpsDamage");
+        if (!_typesConfig.BuffStart.Confirmed          && !recognized.Contains(_typesConfig.BuffStart.Value))          result.Add("buffStart");
+        if (!_typesConfig.BuffEnd.Confirmed            && !recognized.Contains(_typesConfig.BuffEnd.Value))            result.Add("buffEnd");
+        if (!_typesConfig.EnterWorld.Confirmed         && !recognized.Contains(_typesConfig.EnterWorld.Value))         result.Add("enterWorld");
+        if (!_typesConfig.ReadyToEnterWorldB.Confirmed && !recognized.Contains(_typesConfig.ReadyToEnterWorldB.Value)) result.Add("readyToEnterWorldB");
+        if (!_typesConfig.DpsAttack.Confirmed          && !recognized.Contains(_typesConfig.DpsAttack.Value))          result.Add("dpsAttack");
+        if (!_typesConfig.DpsDamage.Confirmed          && !recognized.Contains(_typesConfig.DpsDamage.Value))          result.Add("dpsDamage");
 
         return result;
     }
@@ -222,6 +223,7 @@ public sealed class CaptureWorker
             $" buffStart={result.NewBuffStart}" +
             $" buffEnd={result.NewBuffEnd}" +
             $" enterWorld={result.NewEnterWorld}" +
+            $" readyToEnterWorldB={result.NewReadyToEnterWorldB}" +
             $" dpsAttack={result.NewDpsAttack}" +
             $" dpsDamage={result.NewDpsDamage}");
 

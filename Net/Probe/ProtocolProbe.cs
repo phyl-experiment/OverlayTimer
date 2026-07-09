@@ -58,28 +58,30 @@ namespace OverlayTimer.Net
             int? newBuffStart  = types.BuffStart.Confirmed ? null : TryFindBuffStart(packets, types.BuffStart.Value, typeRadius);
             int? newBuffEnd    = types.BuffEnd.Confirmed ? null : TryFindBuffEnd(packets, types.BuffEnd.Value, newBuffStart, typeRadius);
             int? newEnterWorld = types.EnterWorld.Confirmed ? null : TryFindEnterWorld(packets, types.EnterWorld.Value, typeRadius);
+            int? newReadyB     = types.ReadyToEnterWorldB.Confirmed ? null : TryFindReadyToEnterWorldB(packets, types.ReadyToEnterWorldB.Value);
             int? newDpsAttack  = types.DpsAttack.Confirmed ? null : TryFindDpsAttack(packets, types.DpsAttack.Value, typeRadius);
             int? newDpsDamage  = types.DpsDamage.Confirmed ? null : TryFindDpsDamage(packets, types.DpsDamage.Value, typeRadius);
 
             bool markerChanged = !bestStart.AsSpan().SequenceEqual(curStart)
                               || !bestEnd.AsSpan().SequenceEqual(curEnd);
             bool typeChanged   = newBuffStart.HasValue || newBuffEnd.HasValue
-                              || newEnterWorld.HasValue || newDpsAttack.HasValue
-                              || newDpsDamage.HasValue;
+                              || newEnterWorld.HasValue || newReadyB.HasValue
+                              || newDpsAttack.HasValue || newDpsDamage.HasValue;
 
             if (!markerChanged && !typeChanged)
                 return null;
 
             return new ProbeResult
             {
-                NewStartMarker = markerChanged ? bestStart : null,
-                NewEndMarker   = markerChanged ? bestEnd   : null,
-                NewBuffStart   = newBuffStart,
-                NewBuffEnd     = newBuffEnd,
-                NewEnterWorld  = newEnterWorld,
-                NewDpsAttack   = newDpsAttack,
-                NewDpsDamage   = newDpsDamage,
-                FramesFound    = score,
+                NewStartMarker        = markerChanged ? bestStart : null,
+                NewEndMarker          = markerChanged ? bestEnd   : null,
+                NewBuffStart          = newBuffStart,
+                NewBuffEnd            = newBuffEnd,
+                NewEnterWorld         = newEnterWorld,
+                NewReadyToEnterWorldB = newReadyB,
+                NewDpsAttack          = newDpsAttack,
+                NewDpsDamage          = newDpsDamage,
+                FramesFound           = score,
             };
         }
 
@@ -306,6 +308,59 @@ namespace OverlayTimer.Net
                 ulong id = BinaryPrimitives.ReadUInt64LittleEndian(p.AsSpan(0, 8));
                 return id != 0;
             });
+        }
+
+        /// <summary>
+        /// readyToEnterWorldB: PacketReadyToEnterWorldB shape signature 매칭.
+        /// shape 자체가 매우 특이해서 (35-byte 고정 + UTF-16 BE ASCII + zero-tail) 단독 식별성이
+        /// 충분하므로 typeRadius 제약 없이 전 패킷을 스캔한다. 현재 값이 매칭되면 변경 없음(null).
+        /// 그렇지 않으면 매칭 카운트가 가장 많은 dataType을, 동률이면 current에 가장 가까운 값을 선택.
+        /// </summary>
+        public static int? TryFindReadyToEnterWorldB(
+            List<(int dataType, byte[] payload)> packets, int current)
+        {
+            int currentHits = 0;
+            var hitsByType = new Dictionary<int, int>();
+
+            foreach (var (dt, payload) in packets)
+            {
+                if (!PacketReadyToEnterWorldB.TryParse(payload, out _))
+                    continue;
+
+                if (dt == current)
+                {
+                    currentHits++;
+                }
+                else
+                {
+                    hitsByType.TryGetValue(dt, out int prev);
+                    hitsByType[dt] = prev + 1;
+                }
+            }
+
+            if (currentHits > 0)
+                return null;
+
+            if (hitsByType.Count == 0)
+                return null;
+
+            int best = current;
+            int bestHits = -1;
+            int bestDistance = int.MaxValue;
+
+            foreach (var kv in hitsByType)
+            {
+                int distance = Math.Abs(kv.Key - current);
+                if (kv.Value > bestHits
+                    || (kv.Value == bestHits && distance < bestDistance))
+                {
+                    best = kv.Key;
+                    bestHits = kv.Value;
+                    bestDistance = distance;
+                }
+            }
+
+            return best;
         }
 
         /// <summary>

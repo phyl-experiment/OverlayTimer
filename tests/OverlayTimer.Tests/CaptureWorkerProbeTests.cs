@@ -32,7 +32,7 @@ public class CaptureWorkerProbeTests
     [Fact]
     public void HasUnrecognized_NoneConfirmed_AllRecognized_ReturnsFalse()
     {
-        var recognized = new HashSet<int> { 100055, 100056, 101072, 20389, 20897 };
+        var recognized = new HashSet<int> { 100055, 100056, 101072, 110540, 20389, 20897 };
         var worker = MakeWorker(allConfirmed: false, recognizedTypes: recognized);
         Assert.False(worker.HasUnrecognizedUnconfirmedTypes());
     }
@@ -45,11 +45,12 @@ public class CaptureWorkerProbeTests
         // buffStart만 recognized → 나머지 unconfirmed(buffEnd, dpsAttack, dpsDamage)는 미인식
         var types = new PacketTypesConfig
         {
-            BuffStart  = new Confirmable<int>(100055, confirmed: false),
-            BuffEnd    = new Confirmable<int>(100056, confirmed: false),
-            EnterWorld = new Confirmable<int>(101072, confirmed: true),
-            DpsAttack  = new Confirmable<int>(20389, confirmed: false),
-            DpsDamage  = new Confirmable<int>(20897, confirmed: false),
+            BuffStart          = new Confirmable<int>(100055, confirmed: false),
+            BuffEnd            = new Confirmable<int>(100056, confirmed: false),
+            EnterWorld         = new Confirmable<int>(101072, confirmed: true),
+            ReadyToEnterWorldB = new Confirmable<int>(110540, confirmed: true),
+            DpsAttack          = new Confirmable<int>(20389, confirmed: false),
+            DpsDamage          = new Confirmable<int>(20897, confirmed: false),
         };
         var recognized = new HashSet<int> { 100055 }; // buffStart만 인식
 
@@ -63,13 +64,14 @@ public class CaptureWorkerProbeTests
         // enterWorld만 confirmed (인식 안 됨), 나머지 unconfirmed (전부 인식됨)
         var types = new PacketTypesConfig
         {
-            BuffStart  = new Confirmable<int>(100055, confirmed: false),
-            BuffEnd    = new Confirmable<int>(100056, confirmed: false),
-            EnterWorld = new Confirmable<int>(101072, confirmed: true),
-            DpsAttack  = new Confirmable<int>(20389, confirmed: false),
-            DpsDamage  = new Confirmable<int>(20897, confirmed: false),
+            BuffStart          = new Confirmable<int>(100055, confirmed: false),
+            BuffEnd            = new Confirmable<int>(100056, confirmed: false),
+            EnterWorld         = new Confirmable<int>(101072, confirmed: true),
+            ReadyToEnterWorldB = new Confirmable<int>(110540, confirmed: false),
+            DpsAttack          = new Confirmable<int>(20389, confirmed: false),
+            DpsDamage          = new Confirmable<int>(20897, confirmed: false),
         };
-        var recognized = new HashSet<int> { 100055, 100056, 20389, 20897 };
+        var recognized = new HashSet<int> { 100055, 100056, 110540, 20389, 20897 };
 
         var worker = MakeWorker(types, recognized);
         Assert.False(worker.HasUnrecognizedUnconfirmedTypes());
@@ -101,11 +103,12 @@ public class CaptureWorkerProbeTests
         ProbeResult? capturedResult = null;
         var types = new PacketTypesConfig
         {
-            BuffStart  = new Confirmable<int>(100055, confirmed: false),
-            BuffEnd    = new Confirmable<int>(100056, confirmed: true),
-            EnterWorld = new Confirmable<int>(101072, confirmed: true),
-            DpsAttack  = new Confirmable<int>(20389, confirmed: true),
-            DpsDamage  = new Confirmable<int>(20897, confirmed: true),
+            BuffStart          = new Confirmable<int>(100055, confirmed: false),
+            BuffEnd            = new Confirmable<int>(100056, confirmed: true),
+            EnterWorld         = new Confirmable<int>(101072, confirmed: true),
+            ReadyToEnterWorldB = new Confirmable<int>(110540, confirmed: true),
+            DpsAttack          = new Confirmable<int>(20389, confirmed: true),
+            DpsDamage          = new Confirmable<int>(20897, confirmed: true),
         };
 
         var start = ParseHex("82 4E 00 00 00 00 00 00 00");
@@ -182,11 +185,12 @@ public class CaptureWorkerProbeTests
         };
         var types = new PacketTypesConfig
         {
-            BuffStart  = new Confirmable<int>(100055, confirmed: false),
-            BuffEnd    = new Confirmable<int>(100056, confirmed: true),
-            EnterWorld = new Confirmable<int>(101072, confirmed: true),
-            DpsAttack  = new Confirmable<int>(20389, confirmed: true),
-            DpsDamage  = new Confirmable<int>(20897, confirmed: true),
+            BuffStart          = new Confirmable<int>(100055, confirmed: false),
+            BuffEnd            = new Confirmable<int>(100056, confirmed: true),
+            EnterWorld         = new Confirmable<int>(101072, confirmed: true),
+            ReadyToEnterWorldB = new Confirmable<int>(110540, confirmed: true),
+            DpsAttack          = new Confirmable<int>(20389, confirmed: true),
+            DpsDamage          = new Confirmable<int>(20897, confirmed: true),
         };
 
         int parsedCount = 0;
@@ -240,11 +244,12 @@ public class CaptureWorkerProbeTests
         };
         var types = new PacketTypesConfig
         {
-            BuffStart  = new Confirmable<int>(100055, confirmed: true),
-            BuffEnd    = new Confirmable<int>(100056, confirmed: true),
-            EnterWorld = new Confirmable<int>(101072, confirmed: true),
-            DpsAttack  = new Confirmable<int>(20389, confirmed: true),
-            DpsDamage  = new Confirmable<int>(20897, confirmed: true),
+            BuffStart          = new Confirmable<int>(100055, confirmed: true),
+            BuffEnd            = new Confirmable<int>(100056, confirmed: true),
+            EnterWorld         = new Confirmable<int>(101072, confirmed: true),
+            ReadyToEnterWorldB = new Confirmable<int>(110540, confirmed: true),
+            DpsAttack          = new Confirmable<int>(20389, confirmed: true),
+            DpsDamage          = new Confirmable<int>(20897, confirmed: true),
         };
 
         var parser = new PacketStreamParser((_, _) => { }, start, end);
@@ -285,11 +290,12 @@ public class CaptureWorkerProbeTests
         };
         var types = new PacketTypesConfig
         {
-            BuffStart  = new Confirmable<int>(100055, confirmed: true),
-            BuffEnd    = new Confirmable<int>(100056, confirmed: true),
-            EnterWorld = new Confirmable<int>(101072, confirmed: true),
-            DpsAttack  = new Confirmable<int>(20389, confirmed: true),
-            DpsDamage  = new Confirmable<int>(20897, confirmed: true),
+            BuffStart          = new Confirmable<int>(100055, confirmed: true),
+            BuffEnd            = new Confirmable<int>(100056, confirmed: true),
+            EnterWorld         = new Confirmable<int>(101072, confirmed: true),
+            ReadyToEnterWorldB = new Confirmable<int>(110540, confirmed: true),
+            DpsAttack          = new Confirmable<int>(20389, confirmed: true),
+            DpsDamage          = new Confirmable<int>(20897, confirmed: true),
         };
 
         int parsedCount = 0;
@@ -344,11 +350,12 @@ public class CaptureWorkerProbeTests
         };
         var types = new PacketTypesConfig
         {
-            BuffStart  = new Confirmable<int>(100055, confirmed: true),
-            BuffEnd    = new Confirmable<int>(100056, confirmed: true),
-            EnterWorld = new Confirmable<int>(101072, confirmed: true),
-            DpsAttack  = new Confirmable<int>(20389, confirmed: true),
-            DpsDamage  = new Confirmable<int>(20897, confirmed: true),
+            BuffStart          = new Confirmable<int>(100055, confirmed: true),
+            BuffEnd            = new Confirmable<int>(100056, confirmed: true),
+            EnterWorld         = new Confirmable<int>(101072, confirmed: true),
+            ReadyToEnterWorldB = new Confirmable<int>(110540, confirmed: true),
+            DpsAttack          = new Confirmable<int>(20389, confirmed: true),
+            DpsDamage          = new Confirmable<int>(20897, confirmed: true),
         };
 
         int parsedCount = 0;
@@ -386,11 +393,12 @@ public class CaptureWorkerProbeTests
     {
         var types = new PacketTypesConfig
         {
-            BuffStart  = new Confirmable<int>(100055, allConfirmed),
-            BuffEnd    = new Confirmable<int>(100056, allConfirmed),
-            EnterWorld = new Confirmable<int>(101072, allConfirmed),
-            DpsAttack  = new Confirmable<int>(20389, allConfirmed),
-            DpsDamage  = new Confirmable<int>(20897, allConfirmed),
+            BuffStart          = new Confirmable<int>(100055, allConfirmed),
+            BuffEnd            = new Confirmable<int>(100056, allConfirmed),
+            EnterWorld         = new Confirmable<int>(101072, allConfirmed),
+            ReadyToEnterWorldB = new Confirmable<int>(110540, allConfirmed),
+            DpsAttack          = new Confirmable<int>(20389, allConfirmed),
+            DpsDamage          = new Confirmable<int>(20897, allConfirmed),
         };
         return MakeWorker(types, recognizedTypes);
     }

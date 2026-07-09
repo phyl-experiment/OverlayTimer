@@ -6,15 +6,20 @@
     "deviceName": null
   },
   "protocol": {
-    "startMarker": { "confirmed": true, "value": "83 4E 00 00 00 00 00 00 00" },
-    "endMarker": { "confirmed": true, "value": "1A 4F 00 00 00 00 00 00 00" }
+    "startMarker": { "confirmed": true, "value": "84 4E 00 00 00 00 00 00 00" },
+    "endMarker": { "confirmed": true, "value": "1C 4F 00 00 00 00 00 00 00" }
   },
   "packetTypes": {
-    "buffStart": { "confirmed": true, "value": 110055 },
-    "buffEnd": { "confirmed": true, "value": 110056 },
+    "buffStart": { "confirmed": true, "value": 110056 },
+    "buffEnd": { "confirmed": true, "value": 110057 },
     "enterWorld": { "confirmed": true, "value": 110022 },
-    "dpsAttack": { "confirmed": true, "value": 20408 },
-    "dpsDamage": { "confirmed": true, "value": 20937 }
+    "readyToEnterWorldB": { "confirmed": true, "value": 110545 },
+    "dpsAttack": { "confirmed": true, "value": 20416 },
+    "dpsDamage": { "confirmed": true, "value": 20956 }
+  },
+  "selfId": {
+    "initialDamageFallback": true,
+    "consecutiveDamageOverride": false
   },
   "awakeningBuffKeys": [
     1590198662,

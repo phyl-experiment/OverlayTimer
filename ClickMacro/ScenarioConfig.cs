@@ -13,6 +13,7 @@ public class ScenarioConfig
     public List<StepConfig> Steps { get; set; } = [];
 
     private List<RepeatStepViewModel>? _repeatSteps;
+    [JsonIgnore]
     public List<RepeatStepViewModel> RepeatSteps =>
         _repeatSteps ??= Steps
             .Where(s => s.Type == "repeat")
@@ -27,6 +28,13 @@ public class ScenarioConfig
         if (string.IsNullOrWhiteSpace(config.Name))
             config.Name = Path.GetFileNameWithoutExtension(path);
         return config;
+    }
+
+    public static void Save(string path, string name, List<StepConfig> steps)
+    {
+        var config = new ScenarioConfig { Name = name, Steps = steps };
+        var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(path, json);
     }
 }
 

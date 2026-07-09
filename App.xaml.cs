@@ -176,7 +176,10 @@ public partial class App : System.Windows.Application
         _sniffer = null;
         _cts = new CancellationTokenSource();
 
-        var selfIdResolver = new SelfIdResolver(config.PacketTypes.EnterWorld.Value, _debugInfo);
+        var selfIdResolver = new SelfIdResolver(
+            config.PacketTypes.EnterWorld.Value,
+            config.PacketTypes.ReadyToEnterWorldB.Value,
+            _debugInfo);
         var packetHandler = new PacketHandler(
             _timerTrigger!,
             selfIdResolver,
@@ -192,7 +195,8 @@ public partial class App : System.Windows.Application
             _debugInfo,
             config.SelfId.InitialDamageFallback,
             config.SelfId.ConsecutiveDamageOverride,
-            _benchmarkSession);
+            _benchmarkSession,
+            config.PacketTypes.ReadyToEnterWorldB.Value);
 
         _sniffer = new SnifferService(
             config.Network.TargetPort,
@@ -330,11 +334,12 @@ public partial class App : System.Windows.Application
             config.Protocol.StartMarker.Value = ToHexString(r.NewStartMarker);
         if (r.NewEndMarker != null)
             config.Protocol.EndMarker.Value = ToHexString(r.NewEndMarker);
-        if (r.NewBuffStart.HasValue)  config.PacketTypes.BuffStart.Value  = r.NewBuffStart.Value;
-        if (r.NewBuffEnd.HasValue)    config.PacketTypes.BuffEnd.Value    = r.NewBuffEnd.Value;
-        if (r.NewEnterWorld.HasValue) config.PacketTypes.EnterWorld.Value = r.NewEnterWorld.Value;
-        if (r.NewDpsAttack.HasValue)  config.PacketTypes.DpsAttack.Value  = r.NewDpsAttack.Value;
-        if (r.NewDpsDamage.HasValue)  config.PacketTypes.DpsDamage.Value  = r.NewDpsDamage.Value;
+        if (r.NewBuffStart.HasValue)          config.PacketTypes.BuffStart.Value          = r.NewBuffStart.Value;
+        if (r.NewBuffEnd.HasValue)            config.PacketTypes.BuffEnd.Value            = r.NewBuffEnd.Value;
+        if (r.NewEnterWorld.HasValue)         config.PacketTypes.EnterWorld.Value         = r.NewEnterWorld.Value;
+        if (r.NewReadyToEnterWorldB.HasValue) config.PacketTypes.ReadyToEnterWorldB.Value = r.NewReadyToEnterWorldB.Value;
+        if (r.NewDpsAttack.HasValue)          config.PacketTypes.DpsAttack.Value          = r.NewDpsAttack.Value;
+        if (r.NewDpsDamage.HasValue)          config.PacketTypes.DpsDamage.Value          = r.NewDpsDamage.Value;
     }
 
     private static string ToHexString(byte[] bytes) =>
@@ -348,6 +353,7 @@ public partial class App : System.Windows.Application
             config.PacketTypes.BuffStart.Value,
             config.PacketTypes.BuffEnd.Value,
             config.PacketTypes.EnterWorld.Value,
+            config.PacketTypes.ReadyToEnterWorldB.Value,
             config.PacketTypes.DpsAttack.Value,
             config.PacketTypes.DpsDamage.Value);
     }
@@ -359,6 +365,7 @@ public partial class App : System.Windows.Application
         config.PacketTypes.BuffStart.Value = snapshot.BuffStart;
         config.PacketTypes.BuffEnd.Value = snapshot.BuffEnd;
         config.PacketTypes.EnterWorld.Value = snapshot.EnterWorld;
+        config.PacketTypes.ReadyToEnterWorldB.Value = snapshot.ReadyToEnterWorldB;
         config.PacketTypes.DpsAttack.Value = snapshot.DpsAttack;
         config.PacketTypes.DpsDamage.Value = snapshot.DpsDamage;
     }
@@ -369,6 +376,7 @@ public partial class App : System.Windows.Application
         int BuffStart,
         int BuffEnd,
         int EnterWorld,
+        int ReadyToEnterWorldB,
         int DpsAttack,
         int DpsDamage);
 

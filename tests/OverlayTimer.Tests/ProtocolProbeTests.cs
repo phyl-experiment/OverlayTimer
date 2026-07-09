@@ -113,6 +113,10 @@ public class ProtocolProbeTests
         return p;
     }
 
+    /// <summary>2026-04-25 dump 의 ReadyToEnterWorldB payload (byte-for-byte).</summary>
+    private static readonly byte[] ReadyToEnterWorldBPayload = ParseHex(
+        "001000000046004B003700370041005000500050009830A82500000000000000000000");
+
     private static byte[] ShiftMarker(byte[] original, int delta)
     {
         var result = (byte[])original.Clone();
@@ -131,19 +135,21 @@ public class ProtocolProbeTests
         };
 
     private static PacketTypesConfig MakeTypesConfig(
-        int buffStart  = CurBuffStart,
-        int buffEnd    = CurBuffEnd,
-        int enterWorld = CurEnterWorld,
-        int dpsAttack  = CurDpsAttack,
-        int dpsDamage  = CurDpsDamage,
+        int buffStart          = CurBuffStart,
+        int buffEnd            = CurBuffEnd,
+        int enterWorld         = CurEnterWorld,
+        int dpsAttack          = CurDpsAttack,
+        int dpsDamage          = CurDpsDamage,
+        int readyToEnterWorldB = 110540,
         bool allConfirmed = false) =>
         new()
         {
-            BuffStart  = new Confirmable<int>(buffStart, allConfirmed),
-            BuffEnd    = new Confirmable<int>(buffEnd, allConfirmed),
-            EnterWorld = new Confirmable<int>(enterWorld, allConfirmed),
-            DpsAttack  = new Confirmable<int>(dpsAttack, allConfirmed),
-            DpsDamage  = new Confirmable<int>(dpsDamage, allConfirmed)
+            BuffStart          = new Confirmable<int>(buffStart, allConfirmed),
+            BuffEnd            = new Confirmable<int>(buffEnd, allConfirmed),
+            EnterWorld         = new Confirmable<int>(enterWorld, allConfirmed),
+            ReadyToEnterWorldB = new Confirmable<int>(readyToEnterWorldB, allConfirmed),
+            DpsAttack          = new Confirmable<int>(dpsAttack, allConfirmed),
+            DpsDamage          = new Confirmable<int>(dpsDamage, allConfirmed)
         };
 
     private static byte[] ParseHex(string hex)
@@ -836,11 +842,12 @@ public class ProtocolProbeTests
         // enterWorld만 confirmed, 나머지는 unconfirmed
         var types = new PacketTypesConfig
         {
-            BuffStart  = new Confirmable<int>(CurBuffStart, confirmed: false),
-            BuffEnd    = new Confirmable<int>(CurBuffEnd, confirmed: false),
-            EnterWorld = new Confirmable<int>(CurEnterWorld, confirmed: true),
-            DpsAttack  = new Confirmable<int>(CurDpsAttack, confirmed: false),
-            DpsDamage  = new Confirmable<int>(CurDpsDamage, confirmed: false),
+            BuffStart          = new Confirmable<int>(CurBuffStart, confirmed: false),
+            BuffEnd            = new Confirmable<int>(CurBuffEnd, confirmed: false),
+            EnterWorld         = new Confirmable<int>(CurEnterWorld, confirmed: true),
+            ReadyToEnterWorldB = new Confirmable<int>(110540, confirmed: true),
+            DpsAttack          = new Confirmable<int>(CurDpsAttack, confirmed: false),
+            DpsDamage          = new Confirmable<int>(CurDpsDamage, confirmed: false),
         };
 
         var result = ProtocolProbe.TryDiscover(data,
@@ -855,5 +862,110 @@ public class ProtocolProbeTests
         Assert.Null(result.NewEnterWorld); // confirmed → 스킵
         Assert.Equal(newDpsAttack, result.NewDpsAttack);
         Assert.Equal(newDpsDamage, result.NewDpsDamage);
+    }
+
+    // ------------------------------------------------------------------
+    // ReadyToEnterWorldB 자동 탐색
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void TryDiscover_ReadyToEnterWorldB_DataTypeChangedFarBeyondTypeRadius_StillFound()
+    {
+        // ReadyB는 shape signature가 매우 유일해서 typeRadius 제약 없이 전 패킷 스캔으로 발견.
+        // 현재 값이 110540 인 상황에서 dataType이 1234567 로 점프해도 찾을 수 있어야 함.
+        const int newReadyB = 1234567;
+        var data = new StreamBuilder()
+            .AddNoise()
+            .AddFrame(BaseStart, BaseEnd,
+                (CurBuffStart,  MakeBuffStartPayload()),
+                (newReadyB,     ReadyToEnterWorldBPayload))
+            .AddFrame(BaseStart, BaseEnd,
+                (CurBuffStart,  MakeBuffStartPayload()),
+                (newReadyB,     ReadyToEnterWorldBPayload))
+            .Build();
+
+        var types = MakeTypesConfig(readyToEnterWorldB: 110540);
+
+        var result = ProtocolProbe.TryDiscover(data,
+            MakeProtocolConfig(BaseStart, BaseEnd),
+            types,
+            typeRadius: 50);
+
+        Assert.NotNull(result);
+        Assert.Equal(newReadyB, result.NewReadyToEnterWorldB);
+    }
+
+    [Fact]
+    public void TryDiscover_ReadyToEnterWorldB_CurrentValueMatches_NoChange()
+    {
+        const int currentReadyB = 110540;
+        var data = new StreamBuilder()
+            .AddFrame(BaseStart, BaseEnd,
+                (CurBuffStart,  MakeBuffStartPayload()),
+                (currentReadyB, ReadyToEnterWorldBPayload))
+            .AddFrame(BaseStart, BaseEnd,
+                (CurBuffStart,  MakeBuffStartPayload()),
+                (currentReadyB, ReadyToEnterWorldBPayload))
+            .Build();
+
+        var types = MakeTypesConfig(readyToEnterWorldB: currentReadyB);
+
+        var result = ProtocolProbe.TryDiscover(data,
+            MakeProtocolConfig(BaseStart, BaseEnd),
+            types);
+
+        // 현재 값으로 매칭되므로 NewReadyToEnterWorldB 는 null.
+        Assert.Null(result?.NewReadyToEnterWorldB);
+    }
+
+    [Fact]
+    public void TryDiscover_ReadyToEnterWorldB_Confirmed_Skipped()
+    {
+        const int newReadyB = 200000;
+        var data = new StreamBuilder()
+            .AddFrame(BaseStart, BaseEnd,
+                (CurBuffStart, MakeBuffStartPayload()),
+                (newReadyB,    ReadyToEnterWorldBPayload))
+            .AddFrame(BaseStart, BaseEnd,
+                (CurBuffStart, MakeBuffStartPayload()),
+                (newReadyB,    ReadyToEnterWorldBPayload))
+            .Build();
+
+        var types = MakeTypesConfig(readyToEnterWorldB: 110540, allConfirmed: true);
+
+        var result = ProtocolProbe.TryDiscover(data,
+            MakeProtocolConfig(BaseStart, BaseEnd, startConfirmed: true, endConfirmed: true),
+            types);
+
+        Assert.Null(result); // 모든 타입 confirmed → 변경 없음
+    }
+
+    [Fact]
+    public void TryFindReadyToEnterWorldB_NoMatchingPayload_ReturnsNull()
+    {
+        var packets = new List<(int dataType, byte[] payload)>
+        {
+            (1234, new byte[35]),                                  // 길이만 맞음
+            (5678, new byte[20]),                                  // 다른 길이
+            (9012, MakeBuffStartPayload()),                        // 다른 패킷
+        };
+
+        Assert.Null(ProtocolProbe.TryFindReadyToEnterWorldB(packets, current: 110540));
+    }
+
+    [Fact]
+    public void TryFindReadyToEnterWorldB_PrefersMostFrequent_WhenMultipleCandidates()
+    {
+        // 가상 시나리오: 두 dataType 이 동시에 ReadyB shape 매칭 — 가장 빈도 높은 쪽 선택.
+        var packets = new List<(int dataType, byte[] payload)>
+        {
+            (1000, ReadyToEnterWorldBPayload),
+            (2000, ReadyToEnterWorldBPayload),
+            (2000, ReadyToEnterWorldBPayload),
+            (2000, ReadyToEnterWorldBPayload),
+        };
+
+        int? found = ProtocolProbe.TryFindReadyToEnterWorldB(packets, current: 500);
+        Assert.Equal(2000, found);
     }
 }

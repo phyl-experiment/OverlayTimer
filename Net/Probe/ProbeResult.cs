@@ -20,6 +20,9 @@ namespace OverlayTimer.Net
         /// <summary>새로 발견된 enterWorld dataType. null = 변경 없음.</summary>
         public int? NewEnterWorld { get; init; }
 
+        /// <summary>새로 발견된 readyToEnterWorldB dataType. null = 변경 없음.</summary>
+        public int? NewReadyToEnterWorldB { get; init; }
+
         /// <summary>새로 발견된 dpsAttack dataType. null = 변경 없음.</summary>
         public int? NewDpsAttack { get; init; }
 

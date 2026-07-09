@@ -10,6 +10,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto" MinHeight="30"/>
             <RowDefinition Height="36"/>
+            <RowDefinition Height="36"/>
         </Grid.RowDefinitions>
 
         <ListBox x:Name="ScenarioList"
@@ -54,5 +55,12 @@
                 FontSize="12"
                 Margin="0 8 0 0"
                 Click="ToggleButton_Click"/>
+
+        <Button x:Name="RecordButton"
+                Grid.Row="4"
+                Content="녹화 시작  (F11)"
+                FontSize="12"
+                Margin="0 4 0 0"
+                Click="RecordButton_Click"/>
     </Grid>
 </Window>

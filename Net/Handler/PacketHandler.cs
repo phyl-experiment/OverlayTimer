@@ -19,6 +19,7 @@ namespace OverlayTimer.Net
         private readonly bool _allowConsecutiveOverride;
         private readonly int _dpsAttackType;
         private readonly int _dpsDamageType;
+        private readonly int _readyToEnterWorldTypeB;
         private readonly TimeSpan _defaultActiveDuration;
 
         private readonly List<PendingDamage> _pendingDamages = new();
@@ -58,7 +59,8 @@ namespace OverlayTimer.Net
             OverlayTimer.DebugInfo? debugInfo = null,
             bool allowInitialDamageFallback = false,
             bool allowConsecutiveOverride = false,
-            DpsBenchmarkSession? benchmarkSession = null)
+            DpsBenchmarkSession? benchmarkSession = null,
+            int readyToEnterWorldTypeB = 110540)
         {
             _timerTrigger = timerTrigger;
             _selfIdResolver = selfIdResolver;
@@ -74,6 +76,7 @@ namespace OverlayTimer.Net
             _allowConsecutiveOverride = allowConsecutiveOverride;
             _dpsAttackType = dpsAttackType;
             _dpsDamageType = dpsDamageType;
+            _readyToEnterWorldTypeB = readyToEnterWorldTypeB;
             _defaultActiveDuration = TimeSpan.FromSeconds(Math.Max(1, defaultActiveDurationSeconds));
         }
 
@@ -96,6 +99,17 @@ namespace OverlayTimer.Net
                 if (TryHandleBuffEnd(content))
                     RecognizedPacketCount++;
                 return;
+            }
+
+            // ReadyToEnterWorldB는 SelfIdResolver가 게이팅 용도로 소비하고 selfId를 0으로 반환한다.
+            // probe 트리거 판별을 위해 인식 카운트에 잡아두되, dataType만 일치하고 shape이
+            // 다른 경우(다음 게임 업데이트로 110540이 다른 패킷에 재할당된 케이스 등)는
+            // recognized로 보지 않아야 probe가 제대로 재탐색한다.
+            if (dataType == _readyToEnterWorldTypeB
+                && PacketReadyToEnterWorldB.TryParse(content, out _))
+            {
+                _recognizedDataTypes.Add(dataType);
+                RecognizedPacketCount++;
             }
 
             ulong parsedId;

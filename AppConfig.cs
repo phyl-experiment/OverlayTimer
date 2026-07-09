@@ -115,10 +115,10 @@ namespace OverlayTimer
     public sealed class ProtocolConfig
     {
         [JsonPropertyName("startMarker")]
-        public Confirmable<string> StartMarker { get; set; } = new("83 4E 00 00 00 00 00 00 00", confirmed: true);
+        public Confirmable<string> StartMarker { get; set; } = new("84 4E 00 00 00 00 00 00 00", confirmed: true);
 
         [JsonPropertyName("endMarker")]
-        public Confirmable<string> EndMarker { get; set; } = new("1A 4F 00 00 00 00 00 00 00", confirmed: true);
+        public Confirmable<string> EndMarker { get; set; } = new("1C 4F 00 00 00 00 00 00 00", confirmed: true);
 
         [JsonIgnore]
         public byte[] StartMarkerBytes => ParseHex(StartMarker.Value);
@@ -139,19 +139,22 @@ namespace OverlayTimer
     public sealed class PacketTypesConfig
     {
         [JsonPropertyName("buffStart")]
-        public Confirmable<int> BuffStart { get; set; } = new(110055, confirmed: false);
+        public Confirmable<int> BuffStart { get; set; } = new(110056, confirmed: true);
 
         [JsonPropertyName("buffEnd")]
-        public Confirmable<int> BuffEnd { get; set; } = new(110056, confirmed: false);
+        public Confirmable<int> BuffEnd { get; set; } = new(110057, confirmed: true);
 
         [JsonPropertyName("enterWorld")]
-        public Confirmable<int> EnterWorld { get; set; } = new(110022, confirmed: false);
+        public Confirmable<int> EnterWorld { get; set; } = new(110022, confirmed: true);
+
+        [JsonPropertyName("readyToEnterWorldB")]
+        public Confirmable<int> ReadyToEnterWorldB { get; set; } = new(110545, confirmed: true);
 
         [JsonPropertyName("dpsAttack")]
-        public Confirmable<int> DpsAttack { get; set; } = new(20408, confirmed: false);
+        public Confirmable<int> DpsAttack { get; set; } = new(20416, confirmed: true);
 
         [JsonPropertyName("dpsDamage")]
-        public Confirmable<int> DpsDamage { get; set; } = new(20937, confirmed: true);
+        public Confirmable<int> DpsDamage { get; set; } = new(20956, confirmed: true);
     }
 
     public sealed class TimerConfig
@@ -365,7 +368,7 @@ namespace OverlayTimer
         /// false(기본): EnterWorld 패킷으로만 확정. 다른 플레이어 패킷이 섞일 때 사용.
         /// </summary>
         [JsonPropertyName("initialDamageFallback")]
-        public bool InitialDamageFallback { get; set; } = false;
+        public bool InitialDamageFallback { get; set; } = true;
 
         /// <summary>
         /// true(기본): selfId 확정 후 다른 userId가 연속 N회 오면 덮어씀.

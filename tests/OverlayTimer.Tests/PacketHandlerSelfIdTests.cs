@@ -1,5 +1,6 @@
 using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using OverlayTimer;
 using OverlayTimer.Net;
 
@@ -9,6 +10,10 @@ public class PacketHandlerSelfIdTests
 {
     private const int ReadyToEnterWorldTypeA = 110539;
     private const int ReadyToEnterWorldTypeB = 110540;
+
+    /// <summary>2026-04-25 dump 의 ReadyB shape signature 만족 페이로드.</summary>
+    private static readonly byte[] ReadyToEnterWorldBPayload = ParseHex(
+        "001000000046004B003700370041005000500050009830A82500000000000000000000");
     private const int BuffStartType = 100055;
     private const int BuffEndType = 100056;
     private const int EnterWorldType = 101059;
@@ -19,7 +24,7 @@ public class PacketHandlerSelfIdTests
     [Fact]
     public void EnterWorld_IgnoredUntilReadyPacketSeen()
     {
-        var resolver = new SelfIdResolver(EnterWorldType);
+        var resolver = new SelfIdResolver(EnterWorldType, ReadyToEnterWorldTypeB);
 
         Assert.Equal(0UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(1111UL)));
         Assert.Equal(0UL, resolver.SelfId);
@@ -30,23 +35,68 @@ public class PacketHandlerSelfIdTests
         Assert.Equal(1111UL, resolver.SelfId);
     }
 
-    [Theory]
-    [InlineData(ReadyToEnterWorldTypeA)]
-    [InlineData(ReadyToEnterWorldTypeB)]
-    public void EnterWorld_ResolvedAfterEitherReadyPacket(int readyType)
+    public static IEnumerable<object[]> ReadyPacketCases() => new[]
     {
-        var resolver = new SelfIdResolver(EnterWorldType);
+        new object[] { ReadyToEnterWorldTypeA, Array.Empty<byte>() },
+        new object[] { ReadyToEnterWorldTypeB, ReadyToEnterWorldBPayload },
+    };
 
-        resolver.TryFeed(readyType, Array.Empty<byte>());
+    [Theory]
+    [MemberData(nameof(ReadyPacketCases))]
+    public void EnterWorld_ResolvedAfterEitherReadyPacket(int readyType, byte[] readyPayload)
+    {
+        var resolver = new SelfIdResolver(EnterWorldType, ReadyToEnterWorldTypeB);
+
+        resolver.TryFeed(readyType, readyPayload);
 
         Assert.Equal(2222UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(2222UL)));
         Assert.Equal(2222UL, resolver.SelfId);
     }
 
     [Fact]
+    public void ReadyB_DataTypeMatchButShapeMismatch_DoesNotArm()
+    {
+        var resolver = new SelfIdResolver(EnterWorldType, ReadyToEnterWorldTypeB);
+
+        // dataType은 맞지만 shape 검증 실패 → arm 되지 않아 EnterWorld 가 무시됨.
+        resolver.TryFeed(ReadyToEnterWorldTypeB, Array.Empty<byte>());
+
+        Assert.Equal(0UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(7777UL)));
+        Assert.Equal(0UL, resolver.SelfId);
+    }
+
+    [Fact]
+    public void ReadyB_DataTypeMatchButShapeMismatch_IsNotRecognizedByHandler()
+    {
+        var trigger = new CountingTrigger();
+        var resolver = new SelfIdResolver(EnterWorldType, ReadyToEnterWorldTypeB);
+        var handler = new PacketHandler(
+            trigger,
+            resolver,
+            BuffStartType,
+            BuffEndType,
+            [TestBuffKey],
+            dpsTracker: null,
+            buffUptimeTracker: null,
+            dpsAttackType: DpsAttackType,
+            dpsDamageType: DpsDamageType,
+            readyToEnterWorldTypeB: ReadyToEnterWorldTypeB);
+
+        handler.OnPacket(ReadyToEnterWorldTypeB, Array.Empty<byte>());
+
+        Assert.DoesNotContain(ReadyToEnterWorldTypeB, handler.RecognizedDataTypes);
+        Assert.Equal(0, handler.RecognizedPacketCount);
+
+        handler.OnPacket(ReadyToEnterWorldTypeB, ReadyToEnterWorldBPayload);
+
+        Assert.Contains(ReadyToEnterWorldTypeB, handler.RecognizedDataTypes);
+        Assert.Equal(1, handler.RecognizedPacketCount);
+    }
+
+    [Fact]
     public void EnterWorld_ConsumesOnlyFirstPacketAfterReady()
     {
-        var resolver = new SelfIdResolver(EnterWorldType);
+        var resolver = new SelfIdResolver(EnterWorldType, ReadyToEnterWorldTypeB);
 
         resolver.TryFeed(ReadyToEnterWorldTypeA, Array.Empty<byte>());
 
@@ -58,9 +108,9 @@ public class PacketHandlerSelfIdTests
     [Fact]
     public void ReadyPacket_ExpiresAfterShortWindow()
     {
-        var resolver = new SelfIdResolver(EnterWorldType);
+        var resolver = new SelfIdResolver(EnterWorldType, ReadyToEnterWorldTypeB);
 
-        resolver.TryFeed(ReadyToEnterWorldTypeB, Array.Empty<byte>());
+        resolver.TryFeed(ReadyToEnterWorldTypeB, ReadyToEnterWorldBPayload);
         for (int i = 0; i < 8; i++)
             resolver.TryFeed(900000 + i, Array.Empty<byte>());
 
@@ -72,7 +122,7 @@ public class PacketHandlerSelfIdTests
     public void EnterWorld_DebugInfoMarksConfirmedRecords()
     {
         var debugInfo = new DebugInfo();
-        var resolver = new SelfIdResolver(EnterWorldType, debugInfo);
+        var resolver = new SelfIdResolver(EnterWorldType, ReadyToEnterWorldTypeB, debugInfo);
 
         Assert.Equal(0UL, resolver.TryFeed(EnterWorldType, MakeEnterWorldPayload(1111UL)));
 
@@ -91,7 +141,7 @@ public class PacketHandlerSelfIdTests
     public void BuffStart_IgnoredUntilSelfIdResolved()
     {
         var trigger = new CountingTrigger();
-        var resolver = new SelfIdResolver(EnterWorldType);
+        var resolver = new SelfIdResolver(EnterWorldType, ReadyToEnterWorldTypeB);
         var handler = new PacketHandler(
             trigger,
             resolver,
@@ -120,7 +170,7 @@ public class PacketHandlerSelfIdTests
     public void AwakenBuff_ResolvedViaDamage_ActivatesPendingTimer()
     {
         var trigger = new CountingTrigger();
-        var resolver = new SelfIdResolver(EnterWorldType);
+        var resolver = new SelfIdResolver(EnterWorldType, ReadyToEnterWorldTypeB);
         var dpsTracker = new DpsTracker();
         var handler = new PacketHandler(
             trigger,
@@ -149,7 +199,7 @@ public class PacketHandlerSelfIdTests
     public void Dps_AllowedBeforeSelfIdResolved()
     {
         var trigger = new CountingTrigger();
-        var resolver = new SelfIdResolver(EnterWorldType);
+        var resolver = new SelfIdResolver(EnterWorldType, ReadyToEnterWorldTypeB);
         var dpsTracker = new DpsTracker();
         var handler = new PacketHandler(
             trigger,
@@ -170,7 +220,7 @@ public class PacketHandlerSelfIdTests
 
         Assert.Equal(50000, dpsTracker.GetSnapshot().TotalDamage);
 
-        handler.OnPacket(ReadyToEnterWorldTypeB, Array.Empty<byte>());
+        handler.OnPacket(ReadyToEnterWorldTypeB, ReadyToEnterWorldBPayload);
         handler.OnPacket(EnterWorldType, MakeEnterWorldPayload(2222UL));
         handler.OnPacket(DpsDamageType, MakeDpsDamagePayload(userId: 2222u, targetId: 3333u, damage: 50000u, flags: flags));
         handler.OnPacket(DpsAttackType, MakeDpsAttackPayload(userId: 2222u, targetId: 3333u, key1: 77u, key2: 88u, flags: flags));
@@ -228,5 +278,14 @@ public class PacketHandlerSelfIdTests
         BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20, 4), key2);
         flags.AsSpan(0, Math.Min(flags.Length, 7)).CopyTo(payload.AsSpan(24, 7));
         return payload;
+    }
+
+    private static byte[] ParseHex(string hex)
+    {
+        hex = hex.Replace(" ", "");
+        var result = new byte[hex.Length / 2];
+        for (int i = 0; i < result.Length; i++)
+            result[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+        return result;
     }
 }

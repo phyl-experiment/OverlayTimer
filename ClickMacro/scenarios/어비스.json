@@ -1,0 +1,54 @@
+{
+  "name": "\uC5B4\uBE44\uC2A4",
+  "steps": [
+    {
+      "type": "click",
+      "x": 961,
+      "y": 988,
+      "afterDelayMs": 7531
+    },
+    {
+      "type": "click",
+      "x": 1621,
+      "y": 47,
+      "afterDelayMs": 2156
+    },
+    {
+      "type": "click",
+      "x": 1535,
+      "y": 764,
+      "afterDelayMs": 2953
+    },
+    {
+      "type": "click",
+      "x": 1325,
+      "y": 194,
+      "afterDelayMs": 2953
+    },
+    {
+      "type": "click",
+      "x": 1444,
+      "y": 996,
+      "afterDelayMs": 7500
+    },
+    {
+      "type": "repeat",
+      "x": 1795,
+      "y": 315,
+      "intervalMs": 1000,
+      "durationMs": 240000
+    },
+    {
+      "type": "click",
+      "x": 950,
+      "y": 1004,
+      "afterDelayMs": 10797
+    },
+    {
+      "type": "click",
+      "x": 949,
+      "y": 620,
+      "afterDelayMs": 5000
+    }
+  ]
+}

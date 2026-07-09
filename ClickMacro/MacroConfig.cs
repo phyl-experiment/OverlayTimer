@@ -29,11 +29,14 @@ public class StepConfig
     public int Y { get; set; }
 
     [JsonPropertyName("afterDelayMs")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int AfterDelayMs { get; set; }
 
     [JsonPropertyName("intervalMs")]
-    public int IntervalMs { get; set; } = 1000;
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int IntervalMs { get; set; }
 
     [JsonPropertyName("durationMs")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int DurationMs { get; set; }
 }
