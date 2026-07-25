@@ -1,5 +1,5 @@
 {
-  "name": "\uC5B4\uBE44\uC2A4",
+  "name": "어비스",
   "steps": [
     {
       "type": "click",
@@ -16,7 +16,7 @@
     {
       "type": "click",
       "x": 1444,
-      "y": 529,
+      "y": 1071,
       "afterDelayMs": 2953
     },
     {
