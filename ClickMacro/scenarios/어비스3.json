@@ -1,5 +1,5 @@
 {
-  "name": "어비스",
+  "name": "어비스3",
   "steps": [
     {
       "type": "click",
@@ -16,13 +16,13 @@
     {
       "type": "click",
       "x": 1444,
-      "y": 1071,
+      "y": 529,
       "afterDelayMs": 2953
     },
     {
       "type": "click",
       "x": 1325,
-      "y": 194,
+      "y": 500,
       "afterDelayMs": 2953
     },
     {
