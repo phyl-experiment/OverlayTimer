@@ -1,9 +1,9 @@
 {
   "name": "일반 던전",
   "steps": [
-    { "type": "click",  "x":  640, "y":  480, "afterDelayMs": 2000 },
+    { "type": "click",  "x":  640, "y":  440, "afterDelayMs": 2000 },
     { "type": "click",  "x": 1440, "y": 1000, "afterDelayMs": 2000 },
-    { "type": "repeat", "x": 1900, "y":  370, "intervalMs": 1000, "durationMs": 180000 },
+    { "type": "repeat", "x": 1900, "y":  340, "intervalMs": 1000, "durationMs": 180000 },
     { "type": "click",  "x": 1000, "y": 1020, "afterDelayMs": 5000 },
     { "type": "click",  "x":  400, "y":  850, "afterDelayMs": 2000 }
   ]
