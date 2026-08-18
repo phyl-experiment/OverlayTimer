@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\OverlayTimer.csproj" />
-    <ProjectReference Include="..\..\ClickMacro\ClickMacro.csproj" />
+    <ProjectReference Include="..\..\DungeonWalker\DungeonWalker.csproj" />
   </ItemGroup>
 
   <ItemGroup>

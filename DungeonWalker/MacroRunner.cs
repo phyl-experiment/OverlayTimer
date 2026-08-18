@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace ClickMacro;
+namespace DungeonWalker;
 
 public enum MacroState { Idle, WaitingForFocus, Running }
 

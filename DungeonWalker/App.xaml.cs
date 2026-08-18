@@ -1,5 +1,5 @@
 using System.Windows;
 
-namespace ClickMacro;
+namespace DungeonWalker;
 
 public partial class App : Application { }

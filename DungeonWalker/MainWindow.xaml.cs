@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace ClickMacro;
+namespace DungeonWalker;
 
 public partial class MainWindow : Window
 {

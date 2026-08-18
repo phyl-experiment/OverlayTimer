@@ -11,7 +11,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**\*;tests\**\*;ClickMacro\**\*</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**\*;tests\**\*;DungeonWalker\**\*;ClickMacro\**\*</DefaultItemExcludes>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="PacketDotNet" Version="1.4.8" />

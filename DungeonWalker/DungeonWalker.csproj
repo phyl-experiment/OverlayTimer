@@ -5,8 +5,8 @@
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>ClickMacro</AssemblyName>
-    <RootNamespace>ClickMacro</RootNamespace>
+    <AssemblyName>DungeonWalker</AssemblyName>
+    <RootNamespace>DungeonWalker</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="macro_config.json">

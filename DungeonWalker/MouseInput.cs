@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace ClickMacro;
+namespace DungeonWalker;
 
 internal static class MouseInput
 {

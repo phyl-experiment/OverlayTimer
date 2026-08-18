@@ -42,9 +42,9 @@ jobs:
             -p:DebugSymbols=false `
             -o publish/OverlayTimer
 
-      - name: Publish ClickMacro
+      - name: Publish DungeonWalker
         run: |
-          dotnet publish ClickMacro/ClickMacro.csproj `
+          dotnet publish DungeonWalker/DungeonWalker.csproj `
             -c Release `
             -r win-x64 `
             --self-contained true `
@@ -52,12 +52,12 @@ jobs:
             -p:IncludeNativeLibrariesForSelfExtract=true `
             -p:DebugType=None `
             -p:DebugSymbols=false `
-            -o publish/ClickMacro
+            -o publish/DungeonWalker
 
       - name: Package
         run: |
           Compress-Archive -Path publish/OverlayTimer/* -DestinationPath OverlayTimer-${{ env.RELEASE_TAG }}.zip
-          Compress-Archive -Path publish/ClickMacro/*   -DestinationPath ClickMacro-${{ env.RELEASE_TAG }}.zip
+          Compress-Archive -Path publish/DungeonWalker/* -DestinationPath DungeonWalker-${{ env.RELEASE_TAG }}.zip
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -65,6 +65,6 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           files: |
             OverlayTimer-${{ env.RELEASE_TAG }}.zip
-            ClickMacro-${{ env.RELEASE_TAG }}.zip
+            DungeonWalker-${{ env.RELEASE_TAG }}.zip
           overwrite_files: true
           generate_release_notes: true

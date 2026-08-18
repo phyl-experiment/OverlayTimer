@@ -1,10 +1,10 @@
 using System.IO;
 using System.Text.Json;
-using ClickMacro;
+using DungeonWalker;
 
 namespace OverlayTimer.Tests;
 
-public class ClickMacroTests
+public class DungeonWalkerTests
 {
     // StepConfig 직렬화: click 스텝은 intervalMs/durationMs 생략
     [Fact]
